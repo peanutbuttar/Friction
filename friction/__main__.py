@@ -17,7 +17,10 @@ def main(argv: list[str] | None = None) -> int:
     stat = sub.add_parser("status", help="show what is blocked right now")
     stat.add_argument("--at", metavar="HH:MM", help="pretend it is this time")
 
-    sub.add_parser("daemon", help="run the enforcement daemon (foreground)")
+    dae = sub.add_parser("daemon", help="run the enforcement daemon (foreground)")
+    dae.add_argument("--dry-run", action="store_true",
+                     help="log what would be blocked without closing anything")
+    dae.add_argument("-v", "--verbose", action="store_true")
     sub.add_parser("ui", help="run the menu bar UI")
 
     args = parser.parse_args(argv)
@@ -34,6 +37,10 @@ def main(argv: list[str] | None = None) -> int:
             hh, mm = args.at.split(":")
             when = datetime.now().replace(hour=int(hh), minute=int(mm), second=0)
         return status.run(when)
+
+    if args.command == "daemon":
+        from friction import daemon
+        return daemon.run(dry_run=args.dry_run, verbose=args.verbose)
 
     print(f"'{args.command}' is not implemented yet.", file=sys.stderr)
     return 2

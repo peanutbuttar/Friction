@@ -120,6 +120,13 @@ and to make the on-purpose version cost enough that it usually isn't worth it.
 TCC grant; this was verified. Accessibility would only be needed to *force*-quit
 unresponsive applications, which Friction does not do.
 
+`terminate()` is **asynchronous and polite**: it asks, and the app decides when (or
+whether) to comply. Measured latency is ~0.5s for a cooperative app. An app with
+unsaved work or a confirmation dialog can ignore it entirely, so the blocker verifies
+the app actually went away and retries at 2s, 4s and 8s before giving up and logging
+it. Friction never escalates to a force-kill -- consistent with not being a lock, and
+it avoids destroying unsaved work.
+
 ---
 
 ## 3. Verified platform facts

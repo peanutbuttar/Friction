@@ -30,15 +30,18 @@ sed -e "s|__PYTHON__|$VENV/bin/python|g" \
     "$REPO/com.friction.daemon.plist.template" > "$PLIST"
 echo "    wrote $PLIST"
 
-# The daemon isn't implemented yet (Phase 0). Loading it now would just crash-loop
-# under KeepAlive, so only load once friction/daemon.py exists.
-if [[ -f "$REPO/friction/daemon.py" ]]; then
+# Enforcement is only switched on once there is a way to UNLOCK it. The daemon
+# works, but without the menu bar UI and its challenges there is no escape hatch:
+# blocked things would stay blocked until the tier's release time. So the gate is
+# friction/ui.py, not friction/daemon.py.
+if [[ -f "$REPO/friction/ui.py" ]]; then
   launchctl unload "$PLIST" 2>/dev/null || true
   launchctl load "$PLIST"
   echo "    loaded"
 else
-  echo "    NOT loaded — daemon not implemented yet (Phase 0)."
-  echo "    Loading it now would crash-loop under KeepAlive."
+  echo "    NOT loaded — no unlock UI yet, so enforcement stays off."
+  echo "    Try it by hand instead (Ctrl-C to stop):"
+  echo "      ./venv/bin/python -m friction daemon --dry-run"
 fi
 
 echo
