@@ -83,6 +83,44 @@ def attempt_unlock(item: Item, cfg: dict, whole_tier: bool = False) -> bool:
     return True
 
 
+def attempt_global_unlock(cfg: dict) -> bool:
+    """Release the everything-at-once lock. Confirm plus the tier-3 friction.
+
+    Releases only the global lock; schedule locks and per-item locks survive it,
+    so this is not a cheap way past the tiers.
+    """
+    from friction.challenges import gui
+
+    now = datetime.now()
+    plan = S.global_unlock_plan(cfg)
+    kind = cfg.get("global_switch", {}).get("challenge", "transcription")
+    n = len(S.items(cfg))
+    name = f"everything ({n} items)"
+
+    choice = gui.confirm_unlock(name, plan, NEXT_STEP.get(kind))
+    if choice is gui.CANCELLED:
+        return False
+
+    if kind == "transcription":
+        passed = _transcription(name, plan.minutes or 0, cfg)
+    elif kind == "arithmetic":
+        opts = cfg.get("challenges", {}).get("arithmetic", {})
+        passed = gui.arithmetic(name, plan.minutes or 0, int(opts.get("digits", 2)),
+                                opts.get("operations", ["+", "-", "*"]))
+    else:
+        passed = True
+    if not passed:
+        return False
+
+    if choice is gui.UNTIMED:
+        st.update(lambda s: S.set_global_lock(s, now, False))
+        log.info("released the global lock with no time limit")
+    else:
+        st.update(lambda s: S.grant_pass(s, S.GLOBAL_KEY, now, plan.minutes))
+        log.info("released the global lock for %d minutes", plan.minutes)
+    return True
+
+
 def _transcription(name: str, minutes: int, cfg: dict) -> bool:
     from friction.challenges import gui
 

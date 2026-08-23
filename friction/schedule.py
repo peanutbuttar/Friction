@@ -33,6 +33,15 @@ class Item:
 BY_SCHEDULE = "schedule"
 BY_HAND = "manual"
 
+# The one switch that locks every app and site at once. Its pass releases only
+# THIS lock -- never a schedule lock or a per-item one. Otherwise a single
+# transcription at noon would open all 23 items and bypass the tiers entirely.
+GLOBAL_KEY = "all"
+
+# A global or tier-1 lock has no schedule to lapse against, so it holds until
+# it is deliberately cleared.
+_NO_SCHEDULE = {"schedule": {"mode": "manual"}}
+
 
 @dataclass(frozen=True)
 class UnlockPlan:
@@ -133,7 +142,30 @@ def lock_reason(now: datetime, item: Item, config: dict[str, Any],
     if (manual_arm_active(now, item.key, tier_cfg, state)
             or manual_arm_active(now, item.tier_key, tier_cfg, state)):
         return BY_HAND
+    if global_lock_active(now, state):
+        return BY_HAND
     return None
+
+
+def global_lock_active(now: datetime, state: dict[str, Any]) -> bool:
+    """Is the everything-at-once lock currently holding?"""
+    if pass_active(now, GLOBAL_KEY, state):
+        return False
+    return manual_arm_active(now, GLOBAL_KEY, _NO_SCHEDULE, state)
+
+
+def set_global_lock(state: dict[str, Any], now: datetime, on: bool) -> None:
+    set_manual_arm(state, GLOBAL_KEY, now, on)
+    if on:
+        state.get("passes", {}).pop(GLOBAL_KEY, None)   # a new lock beats an old pass
+
+
+def global_unlock_plan(config: dict[str, Any]) -> UnlockPlan:
+    """Terms for releasing the everything-at-once lock."""
+    g = config.get("global_switch", {})
+    return UnlockPlan(minutes=int(g.get("unlock_minutes", 30)),
+                      clear_manual=False,
+                      offer_choice=(g.get("mode", "choice") == "choice"))
 
 
 def armed(now: datetime, config: dict[str, Any], state: dict[str, Any]) -> set[Item]:

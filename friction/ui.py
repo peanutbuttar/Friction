@@ -59,16 +59,24 @@ class FrictionApp(rumps.App):
         self._entries.clear()
         self._tier_all.clear()
 
-        self._master = rumps.MenuItem("", callback=self._master_clicked)
+        # rumps keys menu items by their title, so these need DISTINCT initial
+        # titles or the second silently replaces the first. Later title updates
+        # do not re-key them.
+        self._master = rumps.MenuItem("master", callback=self._master_clicked)
         self.menu.add(self._master)
+        self.menu.add(rumps.separator)
+
+        self._global = rumps.MenuItem("global", callback=self._global_clicked)
+        self.menu.add(self._global)
         self.menu.add(rumps.separator)
 
         for tier, tier_cfg in self.cfg["tiers"].items():
             header = rumps.MenuItem(tier_cfg.get("label", tier))
-            first = next((i for i in S.items(self.cfg) if i.tier == tier), None)
-            if first is not None:
+            # Tiers 2 and 3 are per-item on purpose: one challenge must not be
+            # able to open a whole tier.
+            if tier_cfg.get("whole_tier_switch"):
                 all_item = rumps.MenuItem(
-                    "", callback=functools.partial(self._tier_clicked, tier))
+                    f"all-{tier}", callback=functools.partial(self._tier_clicked, tier))
                 self._tier_all[tier] = all_item
                 header.add(all_item)
                 header.add(rumps.separator)
@@ -135,6 +143,16 @@ class FrictionApp(rumps.App):
                           else (LOCKED if armed else OPEN))
             self._master.title = f"{LOCKED}  Friction is on"
 
+        n_all = len(all_items)
+        g_expiry = st.parse(passes.get(S.GLOBAL_KEY))
+        if S.global_lock_active(now, state):
+            self._global.title = f"{LOCKED}  Unlock everything ({n_all})"
+        elif g_expiry and g_expiry > now and state.get("manual_arms", {}).get(S.GLOBAL_KEY):
+            self._global.title = (f"{OPEN}  Everything — "
+                                  f"{_countdown(g_expiry, now)} left")
+        else:
+            self._global.title = f"{OPEN}  Lock everything ({n_all})"
+
         for tier, all_item in self._tier_all.items():
             tier_items = [i for i in all_items if i.tier == tier]
             n = len(tier_items)
@@ -192,6 +210,14 @@ class FrictionApp(rumps.App):
         else:
             st.update(lambda s: [S.set_manual_arm(s, i.key, now, True)
                                  for i in tier_items] and None)
+        self._refresh()
+
+    def _global_clicked(self, _sender) -> None:
+        now, state = datetime.now(), st.load()
+        if S.global_lock_active(now, state):
+            challenges.attempt_global_unlock(self.cfg)          # leaving costs
+        else:
+            st.update(lambda s: S.set_global_lock(s, now, True))  # arming is free
         self._refresh()
 
     def _master_clicked(self, _sender) -> None:

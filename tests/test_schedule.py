@@ -222,3 +222,79 @@ def test_release_preserves_original_lock_timestamps(config, state):
     it = item(config, "tier2", "reddit.com")
     S.release_manual_lock(state, it, config, at(23))
     assert state["manual_arms"]["tier2:youtube.com"] == at(21).replace(microsecond=0).isoformat()
+
+
+def test_choosing_timed_still_offers_the_choice_next_time(config, state):
+    """Picking '30 minutes' must not silently become a permanent decision.
+
+    The by-hand lock stays underneath the timed pass, so when it expires the
+    next unlock is still a by-hand lock and the choice comes back.
+    """
+    it = item(config, "tier2", "reddit.com")
+    S.set_manual_arm(state, "tier2:reddit.com", at(21), True)
+
+    first = S.unlock_plan(at(21), it, config, state)
+    assert first.offer_choice and first.minutes == 30
+
+    S.grant_pass(state, "tier2:reddit.com", at(21), 30)          # chose "timed"
+    assert "reddit.com" not in targets(S.armed(at(21, 15), config, state))  # open
+    assert "reddit.com" in targets(S.armed(at(21, 31), config, state))      # re-locked
+
+    second = S.unlock_plan(at(21, 31), it, config, state)
+    assert second.offer_choice and second.minutes == 30, "choice must come back"
+
+
+def test_choosing_untimed_does_not_come_back(config, state):
+    """The other branch: untimed clears the lock, so there is nothing to re-offer."""
+    it = item(config, "tier2", "reddit.com")
+    S.set_manual_arm(state, "tier2:reddit.com", at(21), True)
+    S.release_manual_lock(state, it, config, at(21))             # chose "untimed"
+    assert "reddit.com" not in targets(S.armed(at(23, 59), config, state))
+
+
+# --- the everything-at-once switch -----------------------------------------
+
+def test_global_lock_locks_everything(config, state):
+    S.set_global_lock(state, at(21), True)          # 21:00, nothing scheduled
+    assert len(S.armed(at(21, 5), config, state)) == len(S.items(config))
+
+
+def test_global_unlock_releases_only_the_global_lock(config, state):
+    """The important one: a global pass must not open schedule-locked items."""
+    S.set_global_lock(state, at(12), True)
+    S.grant_pass(state, S.GLOBAL_KEY, at(12), 30)   # unlocked the global lock
+
+    armed = targets(S.armed(at(12, 5), config, state))
+    assert "reddit.com" in armed, "tier 2 is scheduled at noon; must stay locked"
+    assert "x.com" in armed, "tier 3 is scheduled at noon; must stay locked"
+    assert "chess.com" not in armed, "tier 1 has no schedule; global lock was its only one"
+
+
+def test_global_unlock_does_not_override_a_per_item_lock(config, state):
+    S.set_global_lock(state, at(21), True)
+    S.set_manual_arm(state, "tier2:reddit.com", at(21), True)
+    S.grant_pass(state, S.GLOBAL_KEY, at(21), 30)
+
+    armed = targets(S.armed(at(21, 5), config, state))
+    assert "reddit.com" in armed, "its own lock outlives the global one"
+    assert "youtube.com" not in armed
+
+
+def test_global_lock_does_not_lapse_at_a_schedule_boundary(config, state):
+    """It has no schedule of its own, so it holds until deliberately cleared."""
+    S.set_global_lock(state, at(21), True)
+    assert S.global_lock_active(datetime(2026, 8, 27, 3), state)
+
+
+def test_relocking_globally_beats_a_live_pass(config, state):
+    S.set_global_lock(state, at(21), True)
+    S.grant_pass(state, S.GLOBAL_KEY, at(21), 30)
+    assert not S.global_lock_active(at(21, 5), state)
+    S.set_global_lock(state, at(21, 10), True)      # changed your mind
+    assert S.global_lock_active(at(21, 15), state)
+
+
+def test_global_unlock_terms_come_from_config(config):
+    config["global_switch"] = {"unlock_minutes": 30, "mode": "choice"}
+    plan = S.global_unlock_plan(config)
+    assert plan.minutes == 30 and plan.offer_choice

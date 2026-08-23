@@ -47,6 +47,14 @@ Firefox does not expose its tabs to AppleScript, so it is treated as a blocked
 **Every tier confirms first.** The extra friction of tiers 2 and 3 comes *after* the
 "are you sure?", never instead of it.
 
+**One global switch** locks every app and site at once. Locking is free; unlocking
+costs a confirmation plus the transcription. Critically, its unlock releases **only
+the global lock** -- schedule locks and per-item locks survive it. Otherwise one
+transcription at noon would open all 23 items and bypass the tier system entirely.
+
+**Only tier 1 has a whole-tier switch** (`whole_tier_switch`). Tiers 2 and 3 are
+per-item on purpose, so a single challenge cannot open a whole tier.
+
 Every tier can be toggled **both as a whole and item by item**. Unlocking one item
 while its whole tier is locked releases only that item; the tier-wide lock is split
 into individual locks on everything else. Whole-tier *unlock* is only offered where

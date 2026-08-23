@@ -19,7 +19,8 @@
       ],
       "apps": [],
       "manual_unlock_minutes": 30,
-      "manual_unlock_mode": "choice"
+      "manual_unlock_mode": "choice",
+      "whole_tier_switch": true
     },
     "tier2": {
       "label": "Bad",
@@ -39,7 +40,8 @@
         "com.example.SomeApp"
       ],
       "manual_unlock_minutes": 30,
-      "manual_unlock_mode": "choice"
+      "manual_unlock_mode": "choice",
+      "whole_tier_switch": false
     },
     "tier3": {
       "label": "Worst",
@@ -59,7 +61,8 @@
         "org.mozilla.firefox"
       ],
       "manual_unlock_minutes": 30,
-      "manual_unlock_mode": "always_timed"
+      "manual_unlock_mode": "always_timed",
+      "whole_tier_switch": false
     }
   },
   "challenges": {
@@ -103,5 +106,12 @@
     "arc": true,
     "_comment": "Firefox does not expose tabs to AppleScript, so it is blocked as an application (see tier3.apps) rather than swept."
   },
-  "_manual_locks": "When YOU lock something by hand outside its scheduled hours, the unlock terms change: apps come back with no timer at all (you did the work, it's yours until you re-lock it or 06:00 arms it), and sites come back for manual_unlock_minutes. mode 'choice' lets you pick timed or untimed at unlock time; 'always_timed' always puts you on the clock."
+  "_manual_locks": "When YOU lock something by hand outside its scheduled hours, the unlock terms change: apps come back with no timer at all (you did the work, it's yours until you re-lock it or 06:00 arms it), and sites come back for manual_unlock_minutes. mode 'choice' lets you pick timed or untimed at unlock time; 'always_timed' always puts you on the clock.",
+  "global_switch": {
+    "challenge": "transcription",
+    "unlock_minutes": 30,
+    "mode": "choice",
+    "_comment": "One switch locking every app and site at once. Locking is free; unlocking costs a confirmation plus the transcription. Its unlock releases ONLY this lock -- schedule locks and per-item locks still apply, so it cannot be used to bypass the tiers."
+  },
+  "_switches": "whole_tier_switch gives a tier a lock-all/unlock-all row. Only tier 1 has one; tiers 2 and 3 are per-item on purpose, so one challenge cannot open the whole tier."
 }
