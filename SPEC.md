@@ -38,17 +38,40 @@ Firefox does not expose its tabs to AppleScript, so it is treated as a blocked
 
 ### 1.2 Tiers
 
-| | Arms | Releases | Unlock challenge | Pass duration | Manual toggle |
-|---|---|---|---|---|---|
-| **Tier 1** | manual | manual | Confirm | 30 min | whole tier at once |
-| **Tier 2** | 06:00 daily | 18:00 | Confirm, then one arithmetic problem | 15 min | per item |
-| **Tier 3** | 06:00 daily | 20:00 | Confirm, then transcribe a 200–500 word passage | 5 min | per item |
+| | Arms | Releases | Unlock challenge | Pass duration |
+|---|---|---|---|---|
+| **Tier 1** | manual | manual | Confirm | 30 min |
+| **Tier 2** | 06:00 daily | 18:00 | Confirm, then one arithmetic problem | 15 min |
+| **Tier 3** | 06:00 daily | 20:00 | Confirm, then transcribe a 200–500 word passage | 5 min |
+
+**Every tier confirms first.** The extra friction of tiers 2 and 3 comes *after* the
+"are you sure?", never instead of it.
+
+Every tier can be toggled **both as a whole and item by item**. Unlocking one item
+while its whole tier is locked releases only that item; the tier-wide lock is split
+into individual locks on everything else. Whole-tier *unlock* is only offered where
+the challenge is a bare confirm -- elsewhere each item is priced separately on
+purpose. Whole-tier *lock* is always available, because arming is always free.
 
 Durations are per-tier and configurable. The intended shape is that **the worst holes
 get the shortest leash** — Tier 3 costs several minutes of transcription and returns
 five. That ratio is the point, not an accident.
 
 ### 1.3 Unlock semantics
+
+**The terms depend on why it was locked.** A schedule lock is temporary by nature, so
+beating it grants a short pass. A lock the user applied by hand is not on a clock, and
+timing its unlock out would just mean redoing the challenge repeatedly all evening:
+
+| Locked by | Kind | Unlock buys |
+|---|---|---|
+| schedule | anything | the tier's `unlock_minutes` (15 / 5) |
+| by hand | app | **no timer** -- open until re-locked, or until 06:00 arms it |
+| by hand | site, `manual_unlock_mode: choice` | user picks: `manual_unlock_minutes` (30), or untimed |
+| by hand | site, `manual_unlock_mode: always_timed` | always 30 min |
+
+Tier 3 is `always_timed`; tiers 1 and 2 offer the choice.
+
 
 - **Per-item, not per-tier.** Passing a challenge for `reddit.com` unlocks
   `reddit.com` only. Every entry is priced separately.

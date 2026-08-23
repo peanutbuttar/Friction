@@ -1,7 +1,11 @@
-"""The menu bar UI: toggles, and the unlock challenges.
+"""The menu bar UI: toggles, countdowns, and the unlock challenges.
 
 Quitting this does not stop enforcement -- the daemon owns that. This is only
 the control panel.
+
+The menu is built once and its titles are updated in place every second. A full
+rebuild each tick would make the countdowns flicker and could close the menu
+while it is open.
 """
 
 from __future__ import annotations
@@ -20,127 +24,191 @@ from friction.challenges import run as challenges
 
 log = logging.getLogger(__name__)
 
-ARMED_ICON, OPEN_ICON, OFF_ICON = "🔒", "🔓", "⏸"
-REFRESH_SECONDS = 5
+LOCKED, OPEN, OFF = "🔒", "🔓", "⏸"
+TICK_SECONDS = 1        # countdowns show seconds, so this has to be 1
+
+
+def _countdown(until: datetime, now: datetime) -> str:
+    total = max(0, int((until - now).total_seconds()))
+    return f"{total // 60}:{total % 60:02d}"
 
 
 class FrictionApp(rumps.App):
     def __init__(self) -> None:
-        super().__init__("Friction", title=ARMED_ICON, quit_button=None)
+        super().__init__("Friction", title=LOCKED, quit_button=None)
         self.cfg = cfgmod.load()
-        self._timer = rumps.Timer(self._tick, REFRESH_SECONDS)
+        self._cfg_mtime = self._mtime()
+        self._entries: dict[str, rumps.MenuItem] = {}   # item key -> menu item
+        self._tier_all: dict[str, rumps.MenuItem] = {}  # tier    -> "all" item
+        self._master: rumps.MenuItem | None = None
+        self._build()
+        self._timer = rumps.Timer(self._tick, TICK_SECONDS)
         self._timer.start()
-        self._rebuild()
 
-    # -- current picture ----------------------------------------------------
+    # -- structure (built once) --------------------------------------------
 
-    def _now(self) -> datetime:
-        return datetime.now()
-
-    def _snapshot(self):
-        state = st.load()
-        now = self._now()
-        return now, state, {i.key for i in S.armed(now, self.cfg, state)}
-
-    def _tick(self, _timer) -> None:
+    def _mtime(self) -> float:
+        p = cfgmod.LOCAL if cfgmod.LOCAL.exists() else cfgmod.EXAMPLE
         try:
-            self._rebuild()
-        except Exception as e:  # noqa: BLE001 - the UI must not die on a bad tick
-            log.exception("refresh failed: %s", e)
+            return p.stat().st_mtime
+        except OSError:
+            return 0.0
 
-    # -- menu ---------------------------------------------------------------
-
-    def _rebuild(self) -> None:
-        now, state, armed_keys = self._snapshot()
-        master_off = S.master_disarmed(now, state)
-
-        self.title = OFF_ICON if master_off else (ARMED_ICON if armed_keys else OPEN_ICON)
-
+    def _build(self) -> None:
         self.menu.clear()
+        self._entries.clear()
+        self._tier_all.clear()
 
-        if master_off:
-            until = st.parse(state["master_disarmed_until"])
-            self.menu.add(rumps.MenuItem(
-                f"{OFF_ICON}  Everything off until {until:%H:%M}", callback=self._rearm_master))
-            self.menu.add(rumps.MenuItem("Turn it all back on now", callback=self._rearm_master))
-        else:
-            self.menu.add(rumps.MenuItem(
-                f"{ARMED_ICON}  Friction is on", callback=self._disarm_master))
-
+        self._master = rumps.MenuItem("", callback=self._master_clicked)
+        self.menu.add(self._master)
         self.menu.add(rumps.separator)
 
         for tier, tier_cfg in self.cfg["tiers"].items():
-            self._add_tier(tier, tier_cfg, now, state, armed_keys)
+            header = rumps.MenuItem(tier_cfg.get("label", tier))
+            first = next((i for i in S.items(self.cfg) if i.tier == tier), None)
+            if first is not None:
+                all_item = rumps.MenuItem(
+                    "", callback=functools.partial(self._tier_clicked, tier))
+                self._tier_all[tier] = all_item
+                header.add(all_item)
+                header.add(rumps.separator)
+
+            for item in S.items(self.cfg):
+                if item.tier != tier:
+                    continue
+                entry = rumps.MenuItem(
+                    item.target, callback=functools.partial(self._item_clicked, item))
+                self._entries[item.key] = entry
+                header.add(entry)
+            self.menu.add(header)
 
         self.menu.add(rumps.separator)
         self.menu.add(rumps.MenuItem("Quit (enforcement keeps running)",
                                      callback=lambda _: rumps.quit_application()))
+        self._refresh()
 
-    def _add_tier(self, tier, tier_cfg, now, state, armed_keys) -> None:
-        label = tier_cfg.get("label", tier)
-        sched = tier_cfg.get("schedule", {})
-        window = ("manual" if sched.get("mode") != "daily"
-                  else f"{sched['arms']}–{sched['releases']}")
-        whole_tier = tier_cfg.get("toggle_granularity") == "tier"
+    # -- titles (updated every second) --------------------------------------
 
-        header = rumps.MenuItem(f"{label}  ({window})")
+    def _tick(self, _timer) -> None:
+        try:
+            if self._mtime() != self._cfg_mtime:
+                self.cfg = cfgmod.load()
+                self._cfg_mtime = self._mtime()
+                self._build()
+                return
+            self._refresh()
+        except Exception as e:  # noqa: BLE001 - the UI must not die on a bad tick
+            log.exception("refresh failed: %s", e)
 
-        if whole_tier:
-            # Tier 1 toggles as a single unit, so its header IS the control.
-            on = tier in armed_keys
-            header.title = f"{ARMED_ICON if on else OPEN_ICON}  {label}  ({window})"
-            header.set_callback(functools.partial(self._toggle_tier, tier))
-            self.menu.add(header)
-            return
+    def _refresh(self) -> None:
+        now = datetime.now()
+        state = st.load()
+        armed = {i.key for i in S.armed(now, self.cfg, state)}
+        passes = state.get("passes", {})
+        all_items = S.items(self.cfg)
 
-        for item in S.items(self.cfg):
-            if item.tier != tier:
-                continue
-            header.add(self._item_entry(item, tier_cfg, now, state, armed_keys))
-        self.menu.add(header)
+        # A pass only earns a countdown if something is actually being held
+        # open by it. A leftover pass on an unlocked item is not news.
+        holding = {i.key for i in all_items
+                   if S.locked_ignoring_passes(now, i, self.cfg, state)}
 
-    def _item_entry(self, item, tier_cfg, now, state, armed_keys) -> rumps.MenuItem:
-        if item.key in armed_keys:
-            title = f"{ARMED_ICON}  {item.target}"
-        elif S.pass_active(now, item.key, state):
-            until = st.parse(state["passes"][item.key])
-            title = f"{OPEN_ICON}  {item.target} — until {until:%H:%M}"
+        def live_expiry(key: str, tier: str | None = None):
+            expiry = st.parse(passes.get(key))
+            if expiry is None or expiry <= now:
+                return None
+            if tier is not None:
+                return expiry if any(i.key in holding and i.tier == tier
+                                     for i in all_items) else None
+            return expiry if key in holding else None
+
+        if S.master_disarmed(now, state):
+            until = st.parse(state["master_disarmed_until"])
+            self.title = f"{OFF} {_countdown(until, now)}"
+            self._master.title = f"{OFF}  Everything off — {_countdown(until, now)} left"
         else:
-            title = f"{OPEN_ICON}  {item.target}"
-        entry = rumps.MenuItem(title, callback=functools.partial(self._toggle_item, item))
-        return entry
+            ticking = [e for e in
+                       ([live_expiry(i.key) for i in all_items]
+                        + [live_expiry(t, tier=t) for t in self._tier_all])
+                       if e is not None]
+            soonest = min(ticking, default=None)
+            self.title = (f"{OPEN} {_countdown(soonest, now)}" if soonest
+                          else (LOCKED if armed else OPEN))
+            self._master.title = f"{LOCKED}  Friction is on"
+
+        for tier, all_item in self._tier_all.items():
+            tier_items = [i for i in all_items if i.tier == tier]
+            n = len(tier_items)
+            locked_now = [i for i in tier_items if i.key in armed]
+            expiry = live_expiry(tier, tier=tier)
+
+            if expiry:
+                all_item.title = f"{OPEN}  All {n} — {_countdown(expiry, now)} left"
+            elif len(locked_now) == n and n:
+                # Only cheap tiers can be opened in one go. Elsewhere each item
+                # is priced separately on purpose, so don't offer what we won't do.
+                cheap = self.cfg["tiers"][tier].get("challenge") == "confirm"
+                all_item.title = (f"{LOCKED}  Unlock all {n}" if cheap
+                                  else f"{LOCKED}  All {n} locked")
+            else:
+                all_item.title = f"{OPEN}  Lock all {n}"
+
+        for item in all_items:
+            entry = self._entries.get(item.key)
+            if entry is None:
+                continue
+            expiry = live_expiry(item.key)
+            if item.key in armed:
+                entry.title = f"{LOCKED}  {item.target}"
+            elif expiry:
+                entry.title = f"{OPEN}  {item.target} — {_countdown(expiry, now)} left"
+            else:
+                entry.title = f"{OPEN}  {item.target}"
 
     # -- actions ------------------------------------------------------------
 
-    def _toggle_item(self, item, _sender) -> None:
-        now, state, armed_keys = self._snapshot()
-        if item.key in armed_keys:
-            challenges.attempt_unlock(item, self.cfg)      # leaving costs
+    def _item_clicked(self, item, _sender) -> None:
+        now, state = datetime.now(), st.load()
+        if S.lock_reason(now, item, self.cfg, state):
+            challenges.attempt_unlock(item, self.cfg)          # leaving costs
         else:
-            st.update(lambda s: S.set_manual_arm(s, item.key, now, True))  # arming is free
-        self._rebuild()
+            st.update(lambda s: S.set_manual_arm(s, item.key, now, True))  # free
+        self._refresh()
 
-    def _toggle_tier(self, tier, _sender) -> None:
-        now, state, armed_keys = self._snapshot()
-        item = next(i for i in S.items(self.cfg) if i.tier == tier)
-        if tier in armed_keys:
-            challenges.attempt_unlock(item, self.cfg)
+    def _tier_clicked(self, tier, _sender) -> None:
+        now, state = datetime.now(), st.load()
+        tier_items = [i for i in S.items(self.cfg) if i.tier == tier]
+        locked = [i for i in tier_items if S.lock_reason(now, i, self.cfg, state)]
+
+        if locked and len(locked) == len(tier_items):
+            # Unlocking a whole tier at once is only offered where the tier is
+            # cheap. Elsewhere each item is priced separately on purpose.
+            if self.cfg["tiers"][tier].get("challenge") != "confirm":
+                rumps.alert(
+                    "One at a time",
+                    f"{self.cfg['tiers'][tier].get('label', tier)} unlocks item by "
+                    f"item — that's the point of the tier. Open the ones you need.")
+                return
+            challenges.attempt_unlock(tier_items[0], self.cfg, whole_tier=True)
         else:
-            st.update(lambda s: S.set_manual_arm(s, tier, now, True))
-        self._rebuild()
+            st.update(lambda s: [S.set_manual_arm(s, i.key, now, True)
+                                 for i in tier_items] and None)
+        self._refresh()
 
-    def _rearm_master(self, _sender) -> None:
-        st.update(S.rearm_master)                          # free, always
-        self._rebuild()
+    def _master_clicked(self, _sender) -> None:
+        now, state = datetime.now(), st.load()
+        if S.master_disarmed(now, state):
+            st.update(S.rearm_master)                          # free, always
+            self._refresh()
+            return
+        self._disarm_master()
 
-    def _disarm_master(self, _sender) -> None:
+    def _disarm_master(self) -> None:
         """No puzzle and no delay -- but your contacts get told."""
         mt = self.cfg.get("master_toggle", {})
         cfg_notify = mt.get("notify", {})
         contacts = cfg_notify.get("contacts", [])
         minutes = int(mt.get("disarm_minutes", 60))
         message = cfg_notify.get("message", "I just turned off Friction.")
-
         names = ", ".join((c.get("name") or c.get("handle")) if isinstance(c, dict) else c
                           for c in contacts) or "nobody (no contacts configured)"
 
@@ -153,26 +221,24 @@ class FrictionApp(rumps.App):
 
         if not cfg_notify.get("enabled", True) or not contacts:
             st.update(lambda s: S.disarm_master(s, datetime.now(), minutes))
-            self._rebuild()
+            self._refresh()
             return
 
         results = notify.notify_contacts(contacts, message)
-        failed = [r for r in results if not r.accepted]
-        if failed:
+        if failed := [r for r in results if not r.accepted]:
             rumps.alert("Couldn't send",
                         "\n".join(f"{r.name}: {r.error}" for r in failed)
                         + "\n\nFriction stays on.")
             return
 
         # Delivery can't be verified without Full Disk Access, so you confirm.
-        sent_to = ", ".join(r.name for r in results)
         if rumps.Window(
-                message=f"Sent to {sent_to}.\n\nOpen Messages and check it arrived, "
-                        f"then confirm below.",
+                message=f"Sent to {', '.join(r.name for r in results)}.\n\n"
+                        f"Open Messages and check it arrived, then confirm below.",
                 title="Did it send?", ok="Yes, I saw it", cancel="No",
                 dimensions=(0, 0)).run().clicked:
             st.update(lambda s: S.disarm_master(s, datetime.now(), minutes))
-        self._rebuild()
+        self._refresh()
 
 
 def run() -> int:

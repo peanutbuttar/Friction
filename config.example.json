@@ -11,15 +11,15 @@
       "schedule": {
         "mode": "manual"
       },
-      "toggle_granularity": "tier",
-      "_comment": "tier1 arms/disarms as a single unit from one menu bar switch.",
       "challenge": "confirm",
       "unlock_minutes": 30,
       "sites": [
         "news.ycombinator.com",
         "example-news-site.com"
       ],
-      "apps": []
+      "apps": [],
+      "manual_unlock_minutes": 30,
+      "manual_unlock_mode": "choice"
     },
     "tier2": {
       "label": "Bad",
@@ -28,8 +28,6 @@
         "arms": "06:00",
         "releases": "18:00"
       },
-      "toggle_granularity": "item",
-      "_comment": "tier2 entries arm/disarm individually.",
       "challenge": "arithmetic",
       "unlock_minutes": 15,
       "sites": [
@@ -39,7 +37,9 @@
       ],
       "apps": [
         "com.example.SomeApp"
-      ]
+      ],
+      "manual_unlock_minutes": 30,
+      "manual_unlock_mode": "choice"
     },
     "tier3": {
       "label": "Worst",
@@ -48,7 +48,6 @@
         "arms": "06:00",
         "releases": "20:00"
       },
-      "toggle_granularity": "item",
       "challenge": "transcription",
       "unlock_minutes": 5,
       "sites": [
@@ -58,7 +57,9 @@
       ],
       "apps": [
         "org.mozilla.firefox"
-      ]
+      ],
+      "manual_unlock_minutes": 30,
+      "manual_unlock_mode": "always_timed"
     }
   },
   "challenges": {
@@ -101,5 +102,6 @@
     "chrome": true,
     "arc": true,
     "_comment": "Firefox does not expose tabs to AppleScript, so it is blocked as an application (see tier3.apps) rather than swept."
-  }
+  },
+  "_manual_locks": "When YOU lock something by hand outside its scheduled hours, the unlock terms change: apps come back with no timer at all (you did the work, it's yours until you re-lock it or 06:00 arms it), and sites come back for manual_unlock_minutes. mode 'choice' lets you pick timed or untimed at unlock time; 'always_timed' always puts you on the clock."
 }

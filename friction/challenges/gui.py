@@ -61,16 +61,47 @@ def _label(rect, text, *, size=11, secondary=True):
     return f
 
 
-# --- tier 1: confirm -------------------------------------------------------
+# --- step 1, every tier: are you sure? -------------------------------------
 
-def confirm(target: str, minutes: int) -> bool:
+TIMED, UNTIMED, CANCELLED = "timed", "untimed", None
+
+
+def confirm_unlock(target: str, plan, next_step: str | None) -> str | None:
+    """The "are you sure?" every tier gets before its extra friction.
+
+    Returns TIMED, UNTIMED, or CANCELLED. When the plan offers a choice, the
+    two ways of saying yes are the two buttons -- no extra dialog.
+    """
     alert = NSAlert.alloc().init()
     alert.setMessageText_(f"Unlock {target}?")
-    alert.setInformativeText_(
-        f"This opens {target} for {minutes} minutes. It re-blocks itself after that.")
-    alert.addButtonWithTitle_(f"Unlock for {minutes} min")
+
+    lines = []
+    if next_step:
+        lines.append(f"You'll have to {next_step} first.")
+    if plan.offer_choice:
+        lines.append(f"Then choose how long you get: {plan.minutes} minutes, "
+                     f"or until you lock it again yourself.")
+    elif plan.minutes is None:
+        lines.append("It stays unlocked until you lock it again, "
+                     "or until 06:00 tomorrow.")
+    else:
+        lines.append(f"It re-locks itself after {plan.minutes} minutes.")
+    alert.setInformativeText_(" ".join(lines))
+
+    if plan.offer_choice:
+        alert.addButtonWithTitle_(f"Unlock for {plan.minutes} min")
+        alert.addButtonWithTitle_("Until I re-lock it")
+        alert.addButtonWithTitle_("Cancel")
+        choice = alert.runModal()
+        return {NSAlertFirstButtonReturn: TIMED,
+                NSAlertFirstButtonReturn + 1: UNTIMED}.get(choice, CANCELLED)
+
+    alert.addButtonWithTitle_("Unlock" if plan.minutes is None
+                              else f"Unlock for {plan.minutes} min")
     alert.addButtonWithTitle_("Cancel")
-    return alert.runModal() == NSAlertFirstButtonReturn
+    if alert.runModal() != NSAlertFirstButtonReturn:
+        return CANCELLED
+    return UNTIMED if plan.minutes is None else TIMED
 
 
 # --- tier 2: arithmetic ----------------------------------------------------
@@ -87,7 +118,7 @@ def arithmetic(target: str, minutes: int, digits: int, operations: list[str]) ->
 
     alert = NSAlert.alloc().init()
     alert.setMessageText_(f"Unlock {target}")
-    alert.setInformativeText_(f"Solve it to open {target} for {minutes} minutes.")
+    alert.setInformativeText_("Solve it to continue.")
     alert.setAccessoryView_(accessory)
     alert.addButtonWithTitle_("Unlock")
     alert.addButtonWithTitle_("Cancel")
@@ -133,8 +164,7 @@ def transcription(target: str, minutes: int, passage_name: str, passage: str,
 
     alert = NSAlert.alloc().init()
     alert.setMessageText_(f"Unlock {target}")
-    alert.setInformativeText_(
-        f"Transcribe the passage to open {target} for {minutes} minutes.")
+    alert.setInformativeText_("Transcribe the passage to continue.")
     alert.setAccessoryView_(accessory)
     alert.addButtonWithTitle_("Submit")
     alert.addButtonWithTitle_("Give up")

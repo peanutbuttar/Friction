@@ -65,3 +65,14 @@ def test_concurrent_updates_do_not_clobber(tmp_path):
         pool.map(_bump, [(str(p), i) for i in range(12)])
     passes = st.load(p)["passes"]
     assert len(passes) == 12, f"lost writes: only {len(passes)}/12 survived"
+
+
+def test_state_path_can_be_redirected_at_runtime(tmp_path, monkeypatch):
+    """Default args bind at import time; these must resolve at call time so
+    tests (and anything else) can point state somewhere safe."""
+    target = tmp_path / "redirected.json"
+    monkeypatch.setattr(st, "STATE_PATH", target)
+    monkeypatch.setattr(st, "LOCK_PATH", tmp_path / "redirected.lock")
+    st.update(lambda s: s["passes"].update({"k": "v"}))
+    assert target.exists(), "writes must follow the redirected STATE_PATH"
+    assert st.load()["passes"]["k"] == "v"

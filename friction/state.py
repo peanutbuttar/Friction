@@ -45,12 +45,13 @@ def _default() -> dict[str, Any]:
     return json.loads(json.dumps(DEFAULT_STATE))
 
 
-def load(path: Path = STATE_PATH) -> dict[str, Any]:
+def load(path: Path | None = None) -> dict[str, Any]:
     """Read state, falling back to defaults if missing or unreadable.
 
     A corrupt state file must not stop enforcement, so this never raises -- it
     fails closed, to defaults, which means "everything armed as scheduled".
     """
+    path = path or STATE_PATH
     try:
         data = json.loads(path.read_text())
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -64,8 +65,9 @@ def load(path: Path = STATE_PATH) -> dict[str, Any]:
     return merged
 
 
-def save(state: dict[str, Any], path: Path = STATE_PATH) -> None:
+def save(state: dict[str, Any], path: Path | None = None) -> None:
     """Write state atomically: temp file in the same directory, then rename."""
+    path = path or STATE_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".state-", suffix=".tmp")
     try:
@@ -81,7 +83,8 @@ def save(state: dict[str, Any], path: Path = STATE_PATH) -> None:
 
 
 @contextlib.contextmanager
-def _lock(path: Path = LOCK_PATH) -> Iterator[None]:
+def _lock(path: Path | None = None) -> Iterator[None]:
+    path = path or LOCK_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as fh:
         fcntl.flock(fh, fcntl.LOCK_EX)
@@ -91,12 +94,14 @@ def _lock(path: Path = LOCK_PATH) -> Iterator[None]:
             fcntl.flock(fh, fcntl.LOCK_UN)
 
 
-def update(fn: Callable[[dict[str, Any]], None], path: Path = STATE_PATH) -> dict[str, Any]:
+def update(fn: Callable[[dict[str, Any]], None],
+           path: Path | None = None) -> dict[str, Any]:
     """Apply fn to the current state and persist it, holding an exclusive lock.
 
     Use this for anything that reads-then-writes; plain save() can lose a
     concurrent change made between the read and the write.
     """
+    path = path or STATE_PATH
     lock = path.parent / "state.lock"
     with _lock(lock):
         state = load(path)

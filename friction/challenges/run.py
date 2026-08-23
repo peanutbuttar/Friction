@@ -13,47 +13,74 @@ from friction.schedule import Item
 log = logging.getLogger(__name__)
 
 
-def label_for(item: Item, cfg: dict) -> str:
+def label_for(item: Item, cfg: dict, whole_tier: bool = False) -> str:
     """What to call the thing being unlocked.
 
-    Tier 1 unlocks as a whole, so naming a single site there would be a lie.
+    Every tier can now be unlocked either as a whole or item by item, so the
+    name depends on which the user actually clicked -- naming one site when
+    the whole tier is about to open would be a lie.
     """
     tier_cfg = cfg["tiers"][item.tier]
-    if tier_cfg.get("toggle_granularity") == "tier":
+    if whole_tier:
         n = len(tier_cfg.get("sites", [])) + len(tier_cfg.get("apps", []))
-        return f"{tier_cfg.get('label', item.tier)} ({n} items)"
+        return f"all of {tier_cfg.get('label', item.tier)} ({n} items)"
     return item.target
 
 
-def attempt_unlock(item: Item, cfg: dict) -> bool:
-    """Show the challenge. On success, grant the pass and return True."""
+# What the confirm dialog warns you is coming. None means the confirm IS the
+# whole challenge, which is tier 1.
+NEXT_STEP = {
+    "confirm": None,
+    "arithmetic": "solve an arithmetic problem",
+    "transcription": "transcribe a passage of a few hundred words",
+}
+
+
+def attempt_unlock(item: Item, cfg: dict, whole_tier: bool = False) -> bool:
+    """Confirm, then the tier's extra friction, then apply the unlock.
+
+    Every tier confirms first -- that was in the original spec and is the point
+    of the exercise: making it a decision rather than a reflex.
+    """
     from friction.challenges import gui
 
+    now = datetime.now()
+    state = st.load()
     tier_cfg = cfg["tiers"][item.tier]
     kind = tier_cfg.get("challenge", "confirm")
-    minutes = int(tier_cfg.get("unlock_minutes", 15))
-    name = label_for(item, cfg)
+    plan = S.unlock_plan(now, item, cfg, state)
+    name = label_for(item, cfg, whole_tier=whole_tier)
 
-    if kind == "confirm":
-        passed = gui.confirm(name, minutes)
+    choice = gui.confirm_unlock(name, plan, NEXT_STEP.get(kind))
+    if choice is gui.CANCELLED:
+        return False
 
-    elif kind == "arithmetic":
+    if kind == "arithmetic":
         opts = cfg.get("challenges", {}).get("arithmetic", {})
-        passed = gui.arithmetic(name, minutes,
+        passed = gui.arithmetic(name, plan.minutes or 0,
                                 int(opts.get("digits", 2)),
                                 opts.get("operations", ["+", "-", "*"]))
-
     elif kind == "transcription":
-        passed = _transcription(name, minutes, cfg)
-
+        passed = _transcription(name, plan.minutes or 0, cfg)
+    elif kind == "confirm":
+        passed = True                       # the confirm was the challenge
     else:
         log.error("unknown challenge %r for %s", kind, item.tier)
         return False
 
-    if passed:
-        st.update(lambda s: S.grant_pass(s, item.key, datetime.now(), minutes))
-        log.info("unlocked %s for %d minutes", item.key, minutes)
-    return passed
+    if not passed:
+        return False
+
+    key = item.tier_key if whole_tier else item.key
+    if choice is gui.UNTIMED:
+        st.update(lambda s: S.release_manual_lock(s, item, cfg, now,
+                                                  whole_tier=whole_tier))
+        log.info("unlocked %s with no time limit", key)
+    else:
+        minutes = plan.minutes or int(tier_cfg.get("unlock_minutes", 15))
+        st.update(lambda s: S.grant_pass(s, key, now, minutes))
+        log.info("unlocked %s for %d minutes", key, minutes)
+    return True
 
 
 def _transcription(name: str, minutes: int, cfg: dict) -> bool:
