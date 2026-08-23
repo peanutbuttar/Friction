@@ -42,6 +42,10 @@ def main(argv: list[str] | None = None) -> int:
         from friction import daemon
         return daemon.run(dry_run=args.dry_run, verbose=args.verbose)
 
+    if args.command == "ui":
+        from friction import ui
+        return ui.run()
+
     print(f"'{args.command}' is not implemented yet.", file=sys.stderr)
     return 2
 
