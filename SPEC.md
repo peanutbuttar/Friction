@@ -156,18 +156,28 @@ Using a persistent ScriptingBridge connection instead of spawning `osascript` re
 the 21 ms spawn cost but not the 86 ms Apple event. No implementation trick makes
 browser polling cheap; sweep frequency is the only real lever.
 
-### 3.2 Open risk: launchd and TCC
+### 3.2 Resolved: launchd and TCC
 
-The Automation grants exercised during verification belong to the terminal application
-that ran them. `frictiond` under launchd is a **different responsible process**, needs
-its own Automation grant for each target app, and a LaunchAgent with no UI session can
-be denied silently with `-1743` rather than prompting.
+**Verified 2026-08-23. A launchd-started daemon does get and keep Apple Event
+permission on this machine.**
 
-This is the largest remaining unknown. `friction doctor` exists to make the failure
-legible, and a minimal daemon is stood up early specifically to shake this out before
-the rest is built on top of it.
+The concern was that `frictiond` under launchd is a different *responsible process*
+from any terminal, needs its own Automation grant, and -- having no UI session --
+might be denied silently with `-1743` rather than prompting.
 
----
+What actually happens: macOS shows a normal consent dialog (titled after the Python
+binary, not "Friction"), the daemon **blocks** until it is answered, and once granted
+the permission persists across daemon restarts. A single approval covered Chrome,
+Safari and Messages together.
+
+Two consequences for the implementation:
+
+1. **An unanswered consent dialog blocks the calling thread indefinitely.** The probe
+   initially used a 30s subprocess timeout and recorded three false failures while the
+   dialog sat waiting. The daemon must never make an Apple Event call on a thread that
+   matters, and must treat a timeout as "unknown", never as "denied".
+2. First run after install needs a human at the keyboard to click Allow. `install.sh`
+   should say so.
 
 ## 4. Layout
 

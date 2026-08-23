@@ -14,6 +14,9 @@ def main(argv: list[str] | None = None) -> int:
     doc.add_argument("--deep", action="store_true",
                      help="launch browsers if needed to verify Automation access")
 
+    stat = sub.add_parser("status", help="show what is blocked right now")
+    stat.add_argument("--at", metavar="HH:MM", help="pretend it is this time")
+
     sub.add_parser("daemon", help="run the enforcement daemon (foreground)")
     sub.add_parser("ui", help="run the menu bar UI")
 
@@ -23,7 +26,16 @@ def main(argv: list[str] | None = None) -> int:
         from friction import doctor
         return doctor.run(deep=args.deep)
 
-    print(f"'{args.command}' is not implemented yet — Phase 0 only.", file=sys.stderr)
+    if args.command == "status":
+        from datetime import datetime
+        from friction import status
+        when = None
+        if args.at:
+            hh, mm = args.at.split(":")
+            when = datetime.now().replace(hour=int(hh), minute=int(mm), second=0)
+        return status.run(when)
+
+    print(f"'{args.command}' is not implemented yet.", file=sys.stderr)
     return 2
 
 
