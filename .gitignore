@@ -1,0 +1,21 @@
+# Never commit. Contains blocklists and accountability contacts' phone numbers.
+config.local.json
+config.*.local.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Generated at install time from the .template
+com.friction.daemon.plist
+
+# macOS
+.DS_Store
+
+# Daemon logs
+frictiond.log
+frictiond.err.log

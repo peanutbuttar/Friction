@@ -1,0 +1,105 @@
+{
+  "_comment": "Copy to config.local.json and fill in. config.local.json is gitignored; keep real phone numbers out of every other file.",
+  "poll": {
+    "browser_sweep_seconds": 10,
+    "_comment": "Apps are event-driven (NSWorkspace) and are not polled at all. Browser tabs must be polled; 10s measured at ~0.9% of one core."
+  },
+  "_matching": "Site rules match the domain AND all its subdomains. 'reddit.com' also catches old.reddit.com and m.reddit.com. Services owning more than one domain (x.com/twitter.com, youtube.com/youtu.be) need each listed separately.",
+  "tiers": {
+    "tier1": {
+      "label": "Mild",
+      "schedule": {
+        "mode": "manual"
+      },
+      "toggle_granularity": "tier",
+      "_comment": "tier1 arms/disarms as a single unit from one menu bar switch.",
+      "challenge": "confirm",
+      "unlock_minutes": 30,
+      "sites": [
+        "news.ycombinator.com",
+        "example-news-site.com"
+      ],
+      "apps": []
+    },
+    "tier2": {
+      "label": "Bad",
+      "schedule": {
+        "mode": "daily",
+        "arms": "06:00",
+        "releases": "18:00"
+      },
+      "toggle_granularity": "item",
+      "_comment": "tier2 entries arm/disarm individually.",
+      "challenge": "arithmetic",
+      "unlock_minutes": 15,
+      "sites": [
+        "reddit.com",
+        "twitter.com",
+        "x.com"
+      ],
+      "apps": [
+        "com.example.SomeApp"
+      ]
+    },
+    "tier3": {
+      "label": "Worst",
+      "schedule": {
+        "mode": "daily",
+        "arms": "06:00",
+        "releases": "20:00"
+      },
+      "toggle_granularity": "item",
+      "challenge": "transcription",
+      "unlock_minutes": 5,
+      "sites": [
+        "youtube.com",
+        "instagram.com",
+        "tiktok.com"
+      ],
+      "apps": [
+        "org.mozilla.firefox"
+      ]
+    }
+  },
+  "challenges": {
+    "arithmetic": {
+      "digits": 2,
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ]
+    },
+    "transcription": {
+      "passages": [
+        "moby_dick",
+        "great_gatsby"
+      ],
+      "rotate": "alternate",
+      "_comment": "'alternate' strictly ping-pongs between passages across unlocks. 'random' picks one each time.",
+      "normalize_whitespace": true,
+      "normalize_case": true,
+      "normalize_punctuation": true,
+      "_comment_normalize": "Gutenberg text uses curly quotes and em dashes; normalization means a straight ' or -- still matches.",
+      "typo_budget_ratio": 0.02
+    }
+  },
+  "master_toggle": {
+    "disarm_minutes": 60,
+    "notify": {
+      "enabled": true,
+      "service": "imessage",
+      "contacts": [],
+      "_comment_contacts": "Put real handles here, e.g. \"+15551234567\" or an Apple ID email. This file is gitignored.",
+      "message": "Heads up: I just turned off Friction, my distraction blocker. It re-arms in an hour.",
+      "confirmation": "manual",
+      "_comment_confirmation": "'manual' shows you the sent message and requires you to confirm you saw it land. Delivery cannot be verified programmatically without Full Disk Access."
+    }
+  },
+  "browsers": {
+    "safari": true,
+    "chrome": true,
+    "arc": true,
+    "_comment": "Firefox does not expose tabs to AppleScript, so it is blocked as an application (see tier3.apps) rather than swept."
+  }
+}
