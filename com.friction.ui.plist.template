@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.friction.ui</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PYTHON__</string>
+        <string>-m</string>
+        <string>friction</string>
+        <string>ui</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart if it CRASHES, but not if you deliberately choose Quit.
+         KeepAlive true would make the Quit menu item useless. -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>__REPO__/friction-ui.log</string>
+    <key>StandardErrorPath</key>
+    <string>__REPO__/friction-ui.err.log</string>
+</dict>
+</plist>

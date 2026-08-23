@@ -19,3 +19,7 @@ com.friction.daemon.plist
 # Daemon logs
 frictiond.log
 frictiond.err.log
+
+friction-ui.log
+friction-ui.err.log
+com.friction.ui.plist

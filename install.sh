@@ -5,6 +5,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LABEL="com.friction.daemon"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+UI_PLIST="$HOME/Library/LaunchAgents/com.friction.ui.plist"
 VENV="$REPO/venv"
 
 echo "==> Virtualenv"
@@ -37,7 +38,15 @@ echo "    wrote $PLIST"
 if [[ -f "$REPO/friction/ui.py" ]]; then
   launchctl unload "$PLIST" 2>/dev/null || true
   launchctl load "$PLIST"
-  echo "    loaded"
+  echo "    loaded (enforcement)"
+
+  # The UI must also start at login. Without it there is no menu bar icon and
+  # therefore no way to unlock anything -- enforcement with no escape hatch.
+  sed -e "s|__PYTHON__|$VENV/bin/python|g" -e "s|__REPO__|$REPO|g" \
+      "$REPO/com.friction.ui.plist.template" > "$UI_PLIST"
+  launchctl unload "$UI_PLIST" 2>/dev/null || true
+  launchctl load "$UI_PLIST"
+  echo "    loaded (menu bar UI)"
 else
   echo "    NOT loaded — no unlock UI yet, so enforcement stays off."
   echo "    Try it by hand instead (Ctrl-C to stop):"

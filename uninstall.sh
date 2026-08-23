@@ -4,6 +4,7 @@ set -euo pipefail
 
 LABEL="com.friction.daemon"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+UI_PLIST="$HOME/Library/LaunchAgents/com.friction.ui.plist"
 STATE="$HOME/Library/Application Support/Friction"
 
 echo "==> LaunchAgent"
@@ -13,6 +14,12 @@ if [[ -f "$PLIST" ]]; then
   echo "    unloaded and removed $PLIST"
 else
   echo "    not installed, nothing to do"
+fi
+
+if [[ -f "$UI_PLIST" ]]; then
+  launchctl unload "$UI_PLIST" 2>/dev/null || true
+  rm -f "$UI_PLIST"
+  echo "    unloaded and removed the menu bar UI agent"
 fi
 
 echo "==> State"
