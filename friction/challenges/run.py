@@ -122,6 +122,7 @@ def attempt_global_unlock(cfg: dict) -> bool:
 
 
 def _transcription(name: str, minutes: int, cfg: dict) -> bool:
+    """Run the transcription challenge, re-offering it until passed or abandoned."""
     from friction.challenges import gui
 
     opts = cfg.get("challenges", {}).get("transcription", {})

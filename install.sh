@@ -53,6 +53,9 @@ else
   echo "      ./venv/bin/python -m friction daemon --dry-run"
 fi
 
+echo "==> Launcher"
+"$REPO/make_launcher.sh"
+
 echo
 echo "==> Checking your environment"
 "$VENV/bin/python" -m friction doctor || true

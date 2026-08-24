@@ -31,6 +31,11 @@ class AppBlocker:
 
     def __init__(self, armed_apps: Callable[[], set[str]],
                  on_quit: Callable[[str], None] | None = None) -> None:
+        """Store the callback that reports which bundle IDs are currently locked.
+
+        It is a callback rather than a list so the blocker always sees the live
+        schedule without anyone having to notify it of changes.
+        """
         self._armed_apps = armed_apps
         self._on_quit = on_quit
         self._observer = None
@@ -56,13 +61,24 @@ class AppBlocker:
     # -- the live listener --------------------------------------------------
 
     def start(self) -> None:
+        """Subscribe to macOS launch notifications.
+
+        From here the OS pushes an event whenever any application starts; nothing
+        is polled.
+        """
         from AppKit import NSWorkspace, NSWorkspaceDidLaunchApplicationNotification
         from Foundation import NSObject
 
         blocker = self
 
         class _Observer(NSObject):
+            """Objective-C object that receives the launch notification.
+
+            PyObjC requires a real NSObject subclass to be the target of a selector,
+            which is why this cannot just be a plain Python function.
+            """
             def onLaunch_(self, note):                      # noqa: N802 - ObjC selector
+                """Called by macOS on every app launch. Quits the app if it is locked."""
                 try:
                     app = note.userInfo()["NSWorkspaceApplicationKey"]
                     bid = app.bundleIdentifier()
@@ -79,6 +95,7 @@ class AppBlocker:
         log.info("watching for app launches")
 
     def stop(self) -> None:
+        """Unsubscribe and cancel any pending quit re-checks."""
         for timer in list(self._timers):
             timer.cancel()
         self._timers.clear()
@@ -90,6 +107,7 @@ class AppBlocker:
         self._observer = None
 
     def _terminate(self, app, bid: str, attempt: int = 0) -> None:
+        """Ask an app to quit, then schedule a check that it actually did."""
         try:
             app.terminate()
         except Exception as e:                              # noqa: BLE001
@@ -113,6 +131,7 @@ class AppBlocker:
         timer.start()
 
     def _recheck(self, bid: str, attempt: int) -> None:
+        """Re-quit an app that ignored the first request, unless it was unlocked meanwhile."""
         from AppKit import NSRunningApplication
         try:
             if bid not in self._armed_apps():

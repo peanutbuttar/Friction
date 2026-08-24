@@ -7,6 +7,20 @@ reach, and the cost scales with how much of a hole the thing is.
 Three tiers. Tier 1 asks you to confirm. Tier 2 makes you do arithmetic. Tier 3 makes
 you retype the first page of a novel.
 
+## Opening it
+
+Friction lives in your menu bar as a **🔒**. It starts automatically when you log in.
+
+If you quit the panel and want it back, **open Spotlight (⌘-Space) and type
+"Friction"** — that reopens it. Blocking never stopped; the panel is only the
+control surface.
+
+There is also a command, if you prefer one:
+
+```bash
+launchctl start com.friction.ui
+```
+
 ## Status
 
 Early. Under active construction. Nothing here is stable and the install steps below
@@ -110,6 +124,10 @@ Accessibility permission to quit apps.
 ```
 
 Unloads the LaunchAgent and removes the state directory. Your config is left alone.
+
+## Documentation
+
+- [`SPEC.md`](SPEC.md) — the design, and the platform facts measured to support it
 
 ## A note on tamper resistance
 

@@ -21,6 +21,7 @@ W = 560
 
 
 def _scrolling_text(rect, *, editable: bool, font, text: str = ""):
+    """Build a scrollable text view, editable or read-only."""
     scroll = NSScrollView.alloc().initWithFrame_(rect)
     scroll.setHasVerticalScroller_(True)
     scroll.setBorderType_(NSBezelBorder)
@@ -49,6 +50,7 @@ def _scrolling_text(rect, *, editable: bool, font, text: str = ""):
 
 
 def _label(rect, text, *, size=11, secondary=True):
+    """Build a non-interactive text label."""
     f = NSTextField.alloc().initWithFrame_(rect)
     f.setStringValue_(text)
     f.setBezeled_(False)
@@ -109,6 +111,7 @@ def confirm_unlock(target: str, plan, next_step: str | None) -> str | None:
 # --- tier 2: arithmetic ----------------------------------------------------
 
 def arithmetic(target: str, minutes: int, digits: int, operations: list[str]) -> bool:
+    """Show the arithmetic challenge. Returns True if answered correctly."""
     problem = C.make_sum(digits, operations)
 
     accessory = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 300, 58))

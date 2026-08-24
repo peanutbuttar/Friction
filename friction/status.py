@@ -10,6 +10,7 @@ from friction import state as st
 
 
 def run(when: datetime | None = None) -> int:
+    """Print what is blocked right now and why. Returns a shell exit code."""
     now = when or datetime.now()
     cfg = cfgmod.load()
     state = st.load()

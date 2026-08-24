@@ -38,6 +38,7 @@ TIMEOUT = 120
 
 @dataclass
 class SendResult:
+    """Outcome of one send. `accepted` means Messages took it, not that it arrived."""
     handle: str
     name: str
     accepted: bool
@@ -45,6 +46,7 @@ class SendResult:
 
 
 def send_imessage(handle: str, message: str) -> SendResult:
+    """Send one iMessage. Returns whether Messages accepted it."""
     try:
         p = subprocess.run(["osascript", *SEND_SCRIPT, message, handle],
                            capture_output=True, text=True, timeout=TIMEOUT)

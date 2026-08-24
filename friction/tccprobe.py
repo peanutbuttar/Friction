@@ -18,6 +18,7 @@ ERR_NOT_AUTHORIZED = -1743
 
 
 def err_code(msg: str) -> int | None:
+    """Extract the numeric AppleScript error code from an error string."""
     if "(-" not in msg:
         return None
     try:
@@ -27,6 +28,7 @@ def err_code(msg: str) -> int | None:
 
 
 def probe(app: str, script: str) -> tuple[str, str]:
+    """Try one Apple Event, classifying the result as ALLOWED, DENIED, or ERROR."""
     p = subprocess.run(["osascript", "-e", script],
                        capture_output=True, text=True, timeout=180)
     out = (p.stdout or p.stderr).strip()
@@ -39,6 +41,7 @@ def probe(app: str, script: str) -> tuple[str, str]:
 
 
 def main() -> int:
+    """Run every probe and write the report. Returns a shell exit code."""
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "Friction TCC probe",

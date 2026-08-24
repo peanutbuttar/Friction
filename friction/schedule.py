@@ -25,6 +25,7 @@ class Item:
 
     @property
     def is_app(self) -> bool:
+        """True for applications, False for websites. They unlock on different terms."""
         return self.kind == "app"
 
 
@@ -52,6 +53,7 @@ class UnlockPlan:
 
 
 def _hhmm(value: str) -> time:
+    """Parse an 'HH:MM' config string into a time."""
     hh, mm = value.split(":")
     return time(int(hh), int(mm))
 
@@ -119,6 +121,7 @@ def pass_active(now: datetime, key: str, state: dict[str, Any]) -> bool:
 
 
 def master_disarmed(now: datetime, state: dict[str, Any]) -> bool:
+    """Is the master toggle currently switched off?"""
     until = parse(state.get("master_disarmed_until"))
     return until is not None and now < until
 
@@ -155,6 +158,7 @@ def global_lock_active(now: datetime, state: dict[str, Any]) -> bool:
 
 
 def set_global_lock(state: dict[str, Any], now: datetime, on: bool) -> None:
+    """Turn the everything-at-once lock on or off."""
     set_manual_arm(state, GLOBAL_KEY, now, on)
     if on:
         state.get("passes", {}).pop(GLOBAL_KEY, None)   # a new lock beats an old pass
@@ -205,11 +209,13 @@ def unlock_plan(now: datetime, item: Item, config: dict[str, Any],
 # --- state mutations, kept here so the rules live in one file ---------------
 
 def grant_pass(state: dict[str, Any], key: str, now: datetime, minutes: int) -> None:
+    """Record that a challenge was passed, unlocking `key` for `minutes`."""
     state.setdefault("passes", {})[key] = (now + timedelta(minutes=minutes)) \
         .replace(microsecond=0).isoformat()
 
 
 def set_manual_arm(state: dict[str, Any], key: str, now: datetime, on: bool) -> None:
+    """Lock or unlock `key` by hand."""
     arms = state.setdefault("manual_arms", {})
     if on:
         arms[key] = now.replace(microsecond=0).isoformat()
@@ -218,11 +224,13 @@ def set_manual_arm(state: dict[str, Any], key: str, now: datetime, on: bool) -> 
 
 
 def disarm_master(state: dict[str, Any], now: datetime, minutes: int) -> None:
+    """Switch everything off for `minutes`."""
     state["master_disarmed_until"] = (now + timedelta(minutes=minutes)) \
         .replace(microsecond=0).isoformat()
 
 
 def rearm_master(state: dict[str, Any]) -> None:
+    """Switch everything back on immediately."""
     state["master_disarmed_until"] = None
 
 

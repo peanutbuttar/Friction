@@ -27,6 +27,7 @@ BROWSERS = {
 
 @dataclass
 class Closed:
+    """One tab that was closed (or would be, in a dry run), and the rule it tripped."""
     browser: str
     url: str
     rule: str

@@ -42,6 +42,7 @@ DEFAULT_STATE: dict[str, Any] = {
 
 
 def _default() -> dict[str, Any]:
+    """A fresh copy of the default state."""
     return json.loads(json.dumps(DEFAULT_STATE))
 
 
@@ -84,6 +85,7 @@ def save(state: dict[str, Any], path: Path | None = None) -> None:
 
 @contextlib.contextmanager
 def _lock(path: Path | None = None) -> Iterator[None]:
+    """Hold an exclusive file lock for the duration of the block."""
     path = path or LOCK_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as fh:
@@ -113,10 +115,12 @@ def update(fn: Callable[[dict[str, Any]], None],
 # --- helpers for the timestamps stored above -------------------------------
 
 def iso(dt: datetime) -> str:
+    """Format a datetime for storage, to whole seconds."""
     return dt.replace(microsecond=0).isoformat()
 
 
 def parse(value: str | None) -> datetime | None:
+    """Parse a stored timestamp, returning None if absent or malformed."""
     if not value:
         return None
     try:

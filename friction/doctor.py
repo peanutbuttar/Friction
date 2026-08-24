@@ -35,6 +35,7 @@ BROWSERS = [("Safari", "com.apple.Safari"),
 
 @dataclass
 class Check:
+    """One diagnostic result: what was checked, how it went, and how to fix it."""
     status: str
     name: str
     detail: str = ""
@@ -42,6 +43,7 @@ class Check:
 
 
 def _osascript(script: str, timeout: int = 20) -> tuple[int, str]:
+    """Run an AppleScript snippet, returning (exit code, output)."""
     try:
         p = subprocess.run(["osascript", "-e", script],
                            capture_output=True, text=True, timeout=timeout)
@@ -61,16 +63,19 @@ def _err_code(msg: str) -> int | None:
 
 
 def _app_installed(bundle_id: str) -> bool:
+    """Is an application with this bundle ID installed anywhere?"""
     p = subprocess.run(["mdfind", f"kMDItemCFBundleIdentifier == '{bundle_id}'"],
                        capture_output=True, text=True)
     return bool(p.stdout.strip())
 
 
 def _app_running(name: str) -> bool:
+    """Is a process with this name currently running?"""
     return subprocess.run(["pgrep", "-x", name], capture_output=True).returncode == 0
 
 
 def check_python() -> Check:
+    """Verify the interpreter is new enough."""
     v = sys.version_info
     if v < (3, 11):
         return Check(FAIL, "Python 3.11+", f"found {v.major}.{v.minor}.{v.micro}",
@@ -79,6 +84,7 @@ def check_python() -> Check:
 
 
 def check_imports() -> list[Check]:
+    """Verify each third-party dependency actually imports."""
     out = []
     for mod, why in [("rumps", "menu bar UI"),
                      ("AppKit", "app-launch notifications"),
@@ -93,6 +99,7 @@ def check_imports() -> list[Check]:
 
 
 def check_config() -> list[Check]:
+    """Verify the config exists, parses, and is still gitignored."""
     if not CONFIG_LOCAL.exists():
         return [Check(FAIL, "config.local.json", "missing",
                       "cp config.example.json config.local.json  # then fill it in")]
@@ -123,6 +130,7 @@ def check_config() -> list[Check]:
 
 
 def check_state_dir() -> Check:
+    """Verify the state directory exists and is writable."""
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         probe = STATE_DIR / ".write-probe"
@@ -134,6 +142,7 @@ def check_state_dir() -> Check:
 
 
 def check_messages() -> list[Check]:
+    """Verify Messages is reachable and signed in to iMessage."""
     rc, out = _osascript('tell application "Messages" to count of accounts')
     if rc != 0:
         code = _err_code(out)
@@ -157,6 +166,7 @@ def check_messages() -> list[Check]:
 
 
 def check_browsers(deep: bool = False) -> list[Check]:
+    """Verify each installed browser can be controlled via Apple Events."""
     out = []
     for name, bundle_id in BROWSERS:
         if not _app_installed(bundle_id):
@@ -180,6 +190,7 @@ def check_browsers(deep: bool = False) -> list[Check]:
 
 
 def check_workspace_notifications() -> Check:
+    """Verify app-launch notifications are available."""
     try:
         from AppKit import NSWorkspace
         nc = NSWorkspace.sharedWorkspace().notificationCenter()
@@ -191,6 +202,7 @@ def check_workspace_notifications() -> Check:
 
 
 def check_launchd() -> list[Check]:
+    """Report whether the LaunchAgent is installed and loaded."""
     plist = Path.home() / "Library" / "LaunchAgents" / "com.friction.daemon.plist"
     if not plist.exists():
         return [Check(INFO, "LaunchAgent", "not installed yet",
@@ -217,6 +229,7 @@ def check_full_disk_access() -> Check:
 
 
 def run(deep: bool = False) -> int:
+    """Run every check and print a grouped report. Returns a shell exit code."""
     print("\n\033[1mFriction — environment check\033[0m\n")
 
     groups: list[tuple[str, list[Check]]] = [

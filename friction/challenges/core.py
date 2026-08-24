@@ -30,6 +30,7 @@ PUNCT_MAP = {
 
 def normalize(text: str, *, case: bool = True, whitespace: bool = True,
               punctuation: bool = True) -> str:
+    """Flatten away differences that shouldn't count as transcription errors."""
     text = unicodedata.normalize("NFC", text)
     if punctuation:
         for src, dst in PUNCT_MAP.items():
@@ -63,6 +64,7 @@ def edit_distance(a: str, b: str) -> int:
 
 @dataclass
 class Marking:
+    """The result of marking a transcription, including how close a failure was."""
     passed: bool
     distance: int
     allowed: int
@@ -71,12 +73,14 @@ class Marking:
 
     @property
     def progress(self) -> float:
+        """Fraction of the target length typed so far, for progress feedback."""
         return min(1.0, self.typed_chars / self.target_chars) if self.target_chars else 0.0
 
 
 def mark_transcription(typed: str, target: str, *, typo_budget_ratio: float = 0.02,
                        case: bool = True, whitespace: bool = True,
                        punctuation: bool = True) -> Marking:
+    """Compare typed text against the passage, allowing a small typo budget."""
     t = normalize(typed, case=case, whitespace=whitespace, punctuation=punctuation)
     g = normalize(target, case=case, whitespace=whitespace, punctuation=punctuation)
     allowed = int(len(g) * typo_budget_ratio)
@@ -101,10 +105,12 @@ def correct_prefix_len(typed: str, target: str) -> int:
 # --- passages --------------------------------------------------------------
 
 def available_passages() -> list[str]:
+    """Names of every passage file bundled with Friction."""
     return sorted(p.stem for p in PASSAGE_DIR.glob("*.txt"))
 
 
 def load_passage(name: str) -> str:
+    """Read one passage by name, e.g. 'moby_dick'."""
     path = PASSAGE_DIR / f"{name}.txt"
     if not path.exists():
         raise FileNotFoundError(f"no passage named {name!r} in {PASSAGE_DIR}")
@@ -126,6 +132,7 @@ def pick_passage(names: list[str], last: str | None, rotate: str = "alternate") 
 
 
 def title_for(name: str) -> str:
+    """Human-readable title for a passage file name."""
     return {"moby_dick": "Moby-Dick", "great_gatsby": "The Great Gatsby"} \
         .get(name, name.replace("_", " ").title())
 
@@ -134,12 +141,17 @@ def title_for(name: str) -> str:
 
 @dataclass
 class Sum:
+    """A generated arithmetic problem and its answer."""
     question: str
     answer: int
 
 
 def make_sum(digits: int = 2, operations: list[str] | None = None,
              rng: random.Random | None = None) -> Sum:
+    """Generate one arithmetic problem.
+
+    Takes an optional Random so tests can be deterministic.
+    """
     rng = rng or random
     ops = operations or ["+", "-", "*"]
     op = rng.choice(ops)
@@ -152,6 +164,7 @@ def make_sum(digits: int = 2, operations: list[str] | None = None,
 
 
 def mark_sum(given: str, answer: int) -> bool:
+    """Check a typed answer, tolerating spaces and thousands separators."""
     try:
         return int(given.strip().replace(",", "")) == answer
     except (ValueError, AttributeError):

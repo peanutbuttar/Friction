@@ -29,6 +29,7 @@ LOG_PATH = st.STATE_DIR / "frictiond.log"
 
 
 def _setup_logging(verbose: bool = False) -> None:
+    """Send logs to both a file and stdout (which launchd captures)."""
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -38,7 +39,9 @@ def _setup_logging(verbose: bool = False) -> None:
 
 
 class Daemon:
+    """Owns the enforcement loop and the two blockers."""
     def __init__(self, dry_run: bool = False) -> None:
+        """Load config and prepare the app blocker. Nothing starts until run()."""
         self.dry_run = dry_run
         self._stop = threading.Event()
         self._cfg = cfgmod.load()
@@ -48,6 +51,7 @@ class Daemon:
     # -- current decisions, recomputed on demand ----------------------------
 
     def _config_mtime(self) -> float:
+        """Modification time of the active config, used to detect edits."""
         p = cfgmod.LOCAL if cfgmod.LOCAL.exists() else cfgmod.EXAMPLE
         try:
             return p.stat().st_mtime
@@ -68,17 +72,21 @@ class Daemon:
     def _armed(self, now: datetime | None = None):
         # State is re-read every time: the UI writes it, and a stale read here
         # would either enforce through a valid pass or miss a new arm.
+        """The set of items that should be blocked right now."""
         return S.armed(now or datetime.now(), self._cfg, st.load())
 
     def armed_apps(self) -> set[str]:
+        """Bundle IDs that should be blocked right now."""
         return {i.target for i in self._armed() if i.kind == "app"}
 
     def armed_sites(self) -> list[str]:
+        """Domain rules that should be blocked right now."""
         return [i.target for i in self._armed() if i.kind == "site"]
 
     # -- the browser thread -------------------------------------------------
 
     def _sweep_loop(self) -> None:
+        """Browser sweep loop. Runs on its own thread; see the module docstring."""
         interval = self._cfg.get("poll", {}).get("browser_sweep_seconds", 10)
         enabled = {k: v for k, v in self._cfg.get("browsers", {}).items()
                    if not k.startswith("_")}
@@ -102,6 +110,7 @@ class Daemon:
     # -- lifecycle ----------------------------------------------------------
 
     def run(self) -> int:
+        """Start enforcement and block until stopped."""
         from Foundation import NSRunLoop
         from AppKit import NSApplication  # noqa: F401 - initialises the app context
 
@@ -133,6 +142,7 @@ class Daemon:
 
 
 def run(dry_run: bool = False, verbose: bool = False) -> int:
+    """Start enforcement and block until stopped."""
     _setup_logging(verbose)
     try:
         return Daemon(dry_run=dry_run).run()

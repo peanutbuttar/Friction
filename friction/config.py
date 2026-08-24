@@ -12,10 +12,15 @@ EXAMPLE = REPO / "config.example.json"
 
 
 class ConfigError(Exception):
+    """Raised when the config is missing, malformed, or internally inconsistent."""
     pass
 
 
 def load(path: Path | None = None) -> dict[str, Any]:
+    """Load and validate the config, preferring config.local.json.
+
+    Falls back to the example so a fresh clone can still start up.
+    """
     p = path or (LOCAL if LOCAL.exists() else EXAMPLE)
     if not p.exists():
         raise ConfigError(f"no config found; copy {EXAMPLE.name} to {LOCAL.name}")

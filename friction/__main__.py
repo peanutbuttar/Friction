@@ -7,6 +7,11 @@ import sys
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse the command line and dispatch to a subcommand.
+
+    Submodules are imported lazily inside each branch so that `friction doctor`
+    still runs when a GUI dependency is broken -- which is exactly when you need it.
+    """
     parser = argparse.ArgumentParser(prog="friction", description="Distraction blocker")
     sub = parser.add_subparsers(dest="command", required=True)
 

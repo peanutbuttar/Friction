@@ -29,12 +29,19 @@ TICK_SECONDS = 1        # countdowns show seconds, so this has to be 1
 
 
 def _countdown(until: datetime, now: datetime) -> str:
+    """Format the time remaining as M:SS."""
     total = max(0, int((until - now).total_seconds()))
     return f"{total // 60}:{total % 60:02d}"
 
 
 class FrictionApp(rumps.App):
+    """The menu bar panel.
+
+    Builds its menu once and updates the titles in place each second, so open
+    menus do not flicker and countdowns stay live.
+    """
     def __init__(self) -> None:
+        """Load config, build the menu, and start the once-a-second refresh."""
         super().__init__("Friction", title=LOCKED, quit_button=None)
         self.cfg = cfgmod.load()
         self._cfg_mtime = self._mtime()
@@ -48,6 +55,7 @@ class FrictionApp(rumps.App):
     # -- structure (built once) --------------------------------------------
 
     def _mtime(self) -> float:
+        """Modification time of the active config, used to detect edits."""
         p = cfgmod.LOCAL if cfgmod.LOCAL.exists() else cfgmod.EXAMPLE
         try:
             return p.stat().st_mtime
@@ -55,6 +63,7 @@ class FrictionApp(rumps.App):
             return 0.0
 
     def _build(self) -> None:
+        """Create the menu structure and keep references for later title updates."""
         self.menu.clear()
         self._entries.clear()
         self._tier_all.clear()
@@ -97,6 +106,7 @@ class FrictionApp(rumps.App):
     # -- titles (updated every second) --------------------------------------
 
     def _tick(self, _timer) -> None:
+        """Refresh titles once a second, rebuilding fully only if the config changed."""
         try:
             if self._mtime() != self._cfg_mtime:
                 self.cfg = cfgmod.load()
@@ -108,6 +118,7 @@ class FrictionApp(rumps.App):
             log.exception("refresh failed: %s", e)
 
     def _refresh(self) -> None:
+        """Recompute every menu title from the current schedule and state."""
         now = datetime.now()
         state = st.load()
         armed = {i.key for i in S.armed(now, self.cfg, state)}
@@ -120,6 +131,7 @@ class FrictionApp(rumps.App):
                    if S.locked_ignoring_passes(now, i, self.cfg, state)}
 
         def live_expiry(key: str, tier: str | None = None):
+            """Expiry of a pass, but only if something is actually locked underneath it."""
             expiry = st.parse(passes.get(key))
             if expiry is None or expiry <= now:
                 return None
@@ -184,6 +196,7 @@ class FrictionApp(rumps.App):
     # -- actions ------------------------------------------------------------
 
     def _item_clicked(self, item, _sender) -> None:
+        """Lock one item (free), or start its unlock challenge."""
         now, state = datetime.now(), st.load()
         if S.lock_reason(now, item, self.cfg, state):
             challenges.attempt_unlock(item, self.cfg)          # leaving costs
@@ -192,6 +205,7 @@ class FrictionApp(rumps.App):
         self._refresh()
 
     def _tier_clicked(self, tier, _sender) -> None:
+        """Lock a whole tier (free), or unlock it if the tier allows that."""
         now, state = datetime.now(), st.load()
         tier_items = [i for i in S.items(self.cfg) if i.tier == tier]
         locked = [i for i in tier_items if S.lock_reason(now, i, self.cfg, state)]
@@ -227,6 +241,7 @@ class FrictionApp(rumps.App):
             rumps.quit_application()
 
     def _global_clicked(self, _sender) -> None:
+        """Lock everything (free), or start the challenge to release it."""
         now, state = datetime.now(), st.load()
         if S.global_lock_active(now, state):
             challenges.attempt_global_unlock(self.cfg)          # leaving costs
@@ -235,6 +250,7 @@ class FrictionApp(rumps.App):
         self._refresh()
 
     def _master_clicked(self, _sender) -> None:
+        """Turn Friction back on, or begin the accountability-text flow to turn it off."""
         now, state = datetime.now(), st.load()
         if S.master_disarmed(now, state):
             st.update(S.rearm_master)                          # free, always
@@ -282,6 +298,7 @@ class FrictionApp(rumps.App):
 
 
 def run() -> int:
+    """Start the menu bar app. Blocks until quit."""
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     FrictionApp().run()
