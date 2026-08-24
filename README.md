@@ -21,6 +21,11 @@ There is also a command, if you prefer one:
 launchctl start com.friction.ui
 ```
 
+![The Friction menu bar panel](docs/screenshots/menu.png)
+
+*The whole control panel. One switch for everything, one row per tier, and a
+place to add a site. Quitting it closes the panel, not the blocking.*
+
 ## Status
 
 Early. Under active construction. Nothing here is stable and the install steps below
@@ -49,13 +54,32 @@ application rather than a browser.
 | **Tier 2** | 06:00 daily | 18:00 | Confirm, then one arithmetic problem | 15 min |
 | **Tier 1** | manual | manual | Confirm | 30 min |
 
+![The Tier 3 transcription challenge](docs/screenshots/challenge-transcription.png)
+
+*Tier 3. The passage sits above, you retype it below. Autocorrect, smart quotes
+and smart dashes are all switched off, so macOS can't quietly rewrite
+Fitzgerald's punctuation — or silently fix your typing before it's marked.*
+
+![The Tier 2 arithmetic challenge](docs/screenshots/challenge-arithmetic.png)
+
+*Tier 2. One arithmetic problem, after the confirmation. Enough to interrupt a
+reflex, not enough to be a project.*
+
 Unlocks are **per-item**: transcribing a page to reach one site doesn't open any other.
 They're also **timed** — passing a challenge buys minutes, not the rest of the day —
 and they expire silently, with no warning.
 
 Turning blocking *on* is always free, at any tier, at any time. Only leaving costs.
 
-Tier 1 toggles as a whole; Tier 2 and Tier 3 entries toggle individually.
+Every tier can be locked item by item. Tier 1 also has a single switch for the
+whole tier, and one switch at the top of the panel locks everything at once —
+but that one costs a passage to undo, so it can't be used to slip past Tier 3.
+
+![A single site unlocked, with its countdown running](docs/screenshots/unlock-countdown.png)
+
+*Unlocks are per item and visibly timed. `chess.com` has 29:48 left while the
+rest of Tier 1 stays locked, and the menu bar counts down so you can watch the
+time drain without opening anything.*
 
 ## The master toggle
 

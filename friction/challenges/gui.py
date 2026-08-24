@@ -14,6 +14,7 @@ from AppKit import (
     NSAlert, NSAlertFirstButtonReturn, NSBezelBorder, NSColor, NSFont,
     NSMakeRect, NSScrollView, NSTextField, NSTextView, NSView, NSViewWidthSizable,
 )
+from Foundation import NSMakeRange
 
 from friction.challenges import core as C
 
@@ -35,6 +36,10 @@ def _scrolling_text(rect, *, editable: bool, font, text: str = ""):
     tv.setFont_(font)
     tv.setEditable_(editable)
     tv.setString_(text)
+    # Setting a long string can leave the view scrolled away from the top, which
+    # in the passage box means opening on paragraph two with the actual first
+    # line hidden above. Force it back to the beginning.
+    tv.scrollRangeToVisible_(NSMakeRange(0, 0))
     if editable:
         # The whole point is that you type it. Don't let macOS type it for you.
         tv.setAutomaticQuoteSubstitutionEnabled_(False)
@@ -174,6 +179,7 @@ def transcription(target: str, minutes: int, passage_name: str, passage: str,
     alert.addButtonWithTitle_("Submit")
     alert.addButtonWithTitle_("Give up")
     alert.window().setInitialFirstResponder_(typing)
+    passage_scroll.documentView().scrollRangeToVisible_(NSMakeRange(0, 0))
 
     if alert.runModal() != NSAlertFirstButtonReturn:
         return False, typing.string()
