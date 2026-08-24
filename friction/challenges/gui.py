@@ -73,7 +73,9 @@ def confirm_unlock(target: str, plan, next_step: str | None) -> str | None:
     two ways of saying yes are the two buttons -- no extra dialog.
     """
     alert = NSAlert.alloc().init()
-    alert.setMessageText_(f"Unlock {target}?")
+    # Phrased as a question, not a title, so it reads as a decision rather than
+    # as the first pane of the challenge.
+    alert.setMessageText_(f"Are you sure you want to unlock {target}?")
 
     lines = []
     if next_step:

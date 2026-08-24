@@ -18,11 +18,15 @@ from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
 
+# NOTE: the parameter must NOT be called `handle`. Messages' own dictionary
+# defines `handle` as a term, so `participant handle of svc` parses as a class
+# reference rather than as the variable, and the send fails with
+# "Can't get handle. (-1728)". Any non-colliding name works.
 SEND_SCRIPT = [
-    "-e", "on run {msg, handle}",
+    "-e", "on run {msg, recipientId}",
     "-e", 'tell application "Messages"',
     "-e", "set svc to 1st account whose service type = iMessage",
-    "-e", "send msg to participant handle of svc",
+    "-e", "send msg to participant recipientId of svc",
     "-e", "end tell",
     "-e", "end run",
 ]

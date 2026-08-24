@@ -28,3 +28,12 @@ def test_failure_is_reported_not_swallowed(monkeypatch):
                         lambda h, m: notify.SendResult(h, "", False, "boom"))
     results = notify.notify_contacts([{"name": "Alex", "handle": "+1"}], "hi")
     assert not results[0].accepted and results[0].error == "boom"
+
+
+def test_script_does_not_use_reserved_messages_terms():
+    """`handle` is a term in Messages' own dictionary. Using it as a variable
+    makes `participant handle of svc` parse as a class reference and the send
+    fails with -1728. Guard against anyone reintroducing it."""
+    script = " ".join(notify.SEND_SCRIPT)
+    assert "handle" not in script, "rename the variable; `handle` collides"
+    assert "recipientId" in script

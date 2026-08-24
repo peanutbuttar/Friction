@@ -91,8 +91,7 @@ class FrictionApp(rumps.App):
             self.menu.add(header)
 
         self.menu.add(rumps.separator)
-        self.menu.add(rumps.MenuItem("Quit (enforcement keeps running)",
-                                     callback=lambda _: rumps.quit_application()))
+        self.menu.add(rumps.MenuItem("Quit Friction…", callback=self._quit_clicked))
         self._refresh()
 
     # -- titles (updated every second) --------------------------------------
@@ -211,6 +210,21 @@ class FrictionApp(rumps.App):
             st.update(lambda s: [S.set_manual_arm(s, i.key, now, True)
                                  for i in tier_items] and None)
         self._refresh()
+
+    def _quit_clicked(self, _sender) -> None:
+        """Quitting the UI leaves enforcement running with no way to unlock.
+
+        That is a trap worth spelling out rather than discovering at 9am.
+        """
+        if rumps.Window(
+                message="Blocking KEEPS RUNNING — quitting this only closes the "
+                        "control panel.\n\nBut you'll have no way to unlock "
+                        "anything until it's open again.\n\nTo reopen it:\n"
+                        "    launchctl start com.friction.ui\n\n"
+                        "It also reopens by itself when you next log in.",
+                title="Quit the control panel?", ok="Quit anyway",
+                cancel="Keep it open", dimensions=(0, 0)).run().clicked:
+            rumps.quit_application()
 
     def _global_clicked(self, _sender) -> None:
         now, state = datetime.now(), st.load()
