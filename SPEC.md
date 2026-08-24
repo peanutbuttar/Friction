@@ -120,6 +120,18 @@ accepted weakness.
 Matching tabs are **closed**. If a blocked tab is the only tab in its window, the
 window closes with it. This is accepted behaviour.
 
+### 1.6a Editing the blocklist
+
+Sites can be added from the menu bar or with `friction block <url> --tier <tier>`.
+Input is reduced to a domain; a leading `www.` is stripped, because rules match
+subdomains downwards and a `www.`-prefixed rule would not cover the bare domain.
+Additions that are already covered by an existing rule are refused rather than
+silently duplicated.
+
+Removal is **not** offered in either interface -- it means editing
+`config.local.json`. The asymmetry is intentional and matches the rest of the
+design: getting stricter is free, getting laxer costs something.
+
 ### 1.7 Challenges
 
 **Confirm** — a dialog. Nothing else.

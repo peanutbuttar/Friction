@@ -102,6 +102,25 @@ repository public.
 
 State lives in `~/Library/Application Support/Friction/state.json` and is not tracked.
 
+## Adding sites
+
+Either from the menu bar — open any tier and pick **＋ Add a site…**, then paste a
+link — or from the command line:
+
+```bash
+./venv/bin/python -m friction block https://reddit.com/r/all --tier tier2
+```
+
+Both take a full URL or a bare domain, and both reduce it to the domain to match
+on. A leading `www.` is stripped deliberately: rules match downwards, so
+`reddit.com` covers `www.reddit.com`, but a rule of `www.reddit.com` would *not*
+cover the bare `reddit.com`. It also refuses anything already covered — adding
+`old.reddit.com` when `reddit.com` is blocked tells you so instead of quietly
+adding a redundant rule.
+
+**Removing a site means editing `config.local.json` by hand.** That asymmetry is
+deliberate: getting stricter should be effortless, getting laxer should not.
+
 ## Permissions
 
 macOS will not let this work until you grant Automation access by hand, in

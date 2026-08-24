@@ -47,6 +47,7 @@ class FrictionApp(rumps.App):
         self._cfg_mtime = self._mtime()
         self._entries: dict[str, rumps.MenuItem] = {}   # item key -> menu item
         self._tier_all: dict[str, rumps.MenuItem] = {}  # tier    -> "all" item
+        self._add_items: dict[str, rumps.MenuItem] = {}  # tier   -> "add a site" item
         self._master: rumps.MenuItem | None = None
         self._build()
         self._timer = rumps.Timer(self._tick, TICK_SECONDS)
@@ -67,6 +68,7 @@ class FrictionApp(rumps.App):
         self.menu.clear()
         self._entries.clear()
         self._tier_all.clear()
+        self._add_items.clear()
 
         # rumps keys menu items by their title, so these need DISTINCT initial
         # titles or the second silently replaces the first. Later title updates
@@ -97,6 +99,11 @@ class FrictionApp(rumps.App):
                     item.target, callback=functools.partial(self._item_clicked, item))
                 self._entries[item.key] = entry
                 header.add(entry)
+
+            header.add(rumps.separator)
+            header.add(rumps.MenuItem(
+                f"add-{tier}", callback=functools.partial(self._add_site, tier)))
+            self._add_items[tier] = header[f"add-{tier}"]
             self.menu.add(header)
 
         self.menu.add(rumps.separator)
@@ -181,6 +188,9 @@ class FrictionApp(rumps.App):
             else:
                 all_item.title = f"{OPEN}  Lock all {n}"
 
+        for tier, add_item in self._add_items.items():
+            add_item.title = "＋  Add a site…"
+
         for item in all_items:
             entry = self._entries.get(item.key)
             if entry is None:
@@ -224,6 +234,33 @@ class FrictionApp(rumps.App):
             st.update(lambda s: [S.set_manual_arm(s, i.key, now, True)
                                  for i in tier_items] and None)
         self._refresh()
+
+    def _add_site(self, tier, _sender) -> None:
+        """Add a website to this tier from a pasted URL.
+
+        Adding is deliberately easy -- getting stricter should never be a chore.
+        Removing is not offered here; that means editing config.local.json.
+        """
+        from friction.edit import EditError, add_site
+
+        label = self.cfg["tiers"][tier].get("label", tier)
+        response = rumps.Window(
+            message=f"Paste a link or type a domain. It goes into {label}, "
+                    f"and covers subdomains automatically.",
+            title="Block a site", default_text="", ok="Block it",
+            cancel="Cancel", dimensions=(300, 22)).run()
+        if not response.clicked or not response.text.strip():
+            return
+        try:
+            rule = add_site(response.text, tier)
+        except EditError as e:
+            rumps.alert("Couldn't add it", str(e))
+            return
+        # The config changed on disk, so rebuild rather than just retitle.
+        self.cfg = cfgmod.load()
+        self._cfg_mtime = self._mtime()
+        self._build()
+        rumps.alert("Blocked", f"{rule} is now in {label}.")
 
     def _quit_clicked(self, _sender) -> None:
         """Quitting the UI leaves enforcement running with no way to unlock.

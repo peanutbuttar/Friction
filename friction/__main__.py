@@ -28,6 +28,11 @@ def main(argv: list[str] | None = None) -> int:
     dae.add_argument("-v", "--verbose", action="store_true")
     sub.add_parser("ui", help="run the menu bar UI")
 
+    blk = sub.add_parser("block", help="add a website to a tier's blocklist")
+    blk.add_argument("url", help="a URL or bare domain, e.g. https://reddit.com/r/x")
+    blk.add_argument("--tier", default="tier3",
+                     help="which tier to add it to (default: tier3)")
+
     args = parser.parse_args(argv)
 
     if args.command == "doctor":
@@ -46,6 +51,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "daemon":
         from friction import daemon
         return daemon.run(dry_run=args.dry_run, verbose=args.verbose)
+
+    if args.command == "block":
+        from friction import config as cfgmod
+        from friction.edit import EditError, add_site
+        try:
+            rule = add_site(args.url, args.tier)
+        except EditError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        label = cfgmod.load()["tiers"][args.tier].get("label", args.tier)
+        print(f"blocked {rule} in {args.tier} ({label})")
+        return 0
 
     if args.command == "ui":
         from friction import ui
