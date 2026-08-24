@@ -23,3 +23,6 @@ frictiond.err.log
 friction-ui.log
 friction-ui.err.log
 com.friction.ui.plist
+
+# Personal notes — kept locally, never published
+notes/
