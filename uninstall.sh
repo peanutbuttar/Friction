@@ -6,6 +6,7 @@ LABEL="com.friction.daemon"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 UI_PLIST="$HOME/Library/LaunchAgents/com.friction.ui.plist"
 STATE="$HOME/Library/Application Support/Friction"
+LAUNCHER="$HOME/Applications/Friction.app"
 
 echo "==> LaunchAgent"
 if [[ -f "$PLIST" ]]; then
@@ -20,6 +21,14 @@ if [[ -f "$UI_PLIST" ]]; then
   launchctl unload "$UI_PLIST" 2>/dev/null || true
   rm -f "$UI_PLIST"
   echo "    unloaded and removed the menu bar UI agent"
+fi
+
+echo "==> Launcher"
+if [[ -d "$LAUNCHER" ]]; then
+  rm -rf "$LAUNCHER"
+  echo "    removed $LAUNCHER"
+else
+  echo "    no launcher app"
 fi
 
 echo "==> State"

@@ -9,7 +9,9 @@ you retype the first page of a novel.
 
 ## Opening it
 
-Friction lives in your menu bar as a **🔒**. It starts automatically when you log in.
+Friction lives in your menu bar and starts automatically when you log in. The icon
+tells you where you stand: **🔒** when something is blocked, **🔓** when nothing is,
+and **🔓 4:32** counting down when an unlock is running out.
 
 If you quit the panel and want it back, **open Spotlight (⌘-Space) and type
 "Friction"** — that reopens it. Blocking never stopped; the panel is only the
@@ -28,8 +30,9 @@ place to add a site. Quitting it closes the panel, not the blocking.*
 
 ## Status
 
-Early. Under active construction. Nothing here is stable and the install steps below
-may drift from reality — see [`SPEC.md`](SPEC.md) for the intended design.
+Working and in daily use, but young. The install steps below have been run on a
+clean machine; everything else may still move. See [`SPEC.md`](SPEC.md) for the
+design and for the platform behaviour it was measured against.
 
 ## How it works
 
@@ -48,11 +51,11 @@ application rather than a browser.
 
 ## Tiers
 
-| | Arms | Releases | Unlock | Buys you |
-|---|---|---|---|---|
-| **Tier 3** | 06:00 daily | 20:00 | Confirm, then transcribe a 200–500 word passage | 5 min |
-| **Tier 2** | 06:00 daily | 18:00 | Confirm, then one arithmetic problem | 15 min |
-| **Tier 1** | manual | manual | Confirm | 30 min |
+| | Arms | Releases | Unlock costs |
+|---|---|---|---|
+| **Tier 3** | 06:00 daily | 20:00 | Confirm, then transcribe a 200–500 word passage |
+| **Tier 2** | 06:00 daily | 18:00 | Confirm, then one arithmetic problem |
+| **Tier 1** | manual only | manual only | Confirm |
 
 ![The Tier 3 transcription challenge](docs/screenshots/challenge-transcription.png)
 
@@ -65,9 +68,24 @@ Fitzgerald's punctuation — or silently fix your typing before it's marked.*
 *Tier 2. One arithmetic problem, after the confirmation. Enough to interrupt a
 reflex, not enough to be a project.*
 
-Unlocks are **per-item**: transcribing a page to reach one site doesn't open any other.
-They're also **timed** — passing a challenge buys minutes, not the rest of the day —
-and they expire silently, with no warning.
+Unlocks are **per-item**: transcribing a page to reach one site doesn't open any
+other. Every hole is priced separately.
+
+**What an unlock buys you depends on why the thing was locked.** A lock the
+schedule applied is temporary by nature, so beating it buys a short pass. A lock
+*you* applied by hand isn't on a clock, and timing it out would just mean redoing
+the challenge every half hour all evening:
+
+| Locked by | Kind | You get |
+|---|---|---|
+| the schedule | anything | 15 min (Tier 2) · 5 min (Tier 3) |
+| you, by hand | an app | **no timer** — until you re-lock it, or 06:00 |
+| you, by hand | a site, Tier 1 or 2 | your choice: 30 min, or until you re-lock it |
+| you, by hand | a site, Tier 3 | always 30 min |
+
+Tier 1 has no schedule, so its unlocks always offer that choice.
+
+Timed passes **expire silently**, with no warning — the tab just closes again.
 
 Turning blocking *on* is always free, at any tier, at any time. Only leaving costs.
 
@@ -85,10 +103,23 @@ time drain without opening anything.*
 
 One switch at the top of the panel arms or disarms everything at once.
 
-Turning it *on* is free. Turning it *off* has no dialog, no puzzle, and no delay — it
-just texts your accountability contacts to tell them you did it, and won't disarm
-until you confirm the message landed. Disarming this way is also timed; everything
-re-arms after an hour.
+Turning it *on* is free and immediate.
+
+Turning it *off* has **no puzzle and no delay** — no arithmetic, no transcription,
+no waiting. What it does have is witnesses. It shows you exactly what is about to
+be sent and to whom, and asks you to confirm:
+
+> This texts Alex, Sam:
+> *"Heads up: I just turned off Friction, my distraction blocker. It re-arms in an hour."*
+> Everything re-arms in 60 minutes.
+> `Send it`  `Never mind`
+
+Once sent, it asks a second time whether you actually saw the message land, and
+won't disarm until you say yes. That second step is manual because verifying
+delivery would mean reading the Messages database, which needs Full Disk Access —
+a permission Friction deliberately doesn't ask for.
+
+Disarming this way is timed; everything re-arms after an hour.
 
 ## Requirements
 
@@ -104,16 +135,24 @@ cd friction
 ./install.sh
 ```
 
-`install.sh` sets up the virtualenv, writes the LaunchAgent plist to
-`~/Library/LaunchAgents`, and loads it.
+`install.sh` creates the virtualenv, copies `config.example.json` to
+`config.local.json` if you don't already have one, writes two LaunchAgents to
+`~/Library/LaunchAgents` and loads them, builds the launcher app, and finally runs
+`friction doctor` to tell you what's still missing.
 
-A LaunchAgent is not an application — there's nothing in `/Applications` and no icon.
-It's a small config file telling macOS's built-in service manager to keep `frictiond`
-running and restart it at login.
+The two LaunchAgents are the real program: one for the enforcement daemon, one for
+the menu bar panel. A LaunchAgent isn't an application — it's a small config file
+telling macOS's built-in service manager what to run, to start it at login, and to
+restart the daemon if it dies.
+
+The one thing that *is* an app is `~/Applications/Friction.app`, and it does almost
+nothing: it asks launchd to start the panel again. It exists only so you can reopen
+Friction from Spotlight instead of remembering a command.
 
 ## Configuration
 
-Copy the example config and fill it in:
+`install.sh` creates `config.local.json` for you on first run. To start one by
+hand instead:
 
 ```bash
 cp config.example.json config.local.json
@@ -128,8 +167,8 @@ State lives in `~/Library/Application Support/Friction/state.json` and is not tr
 
 ## Adding sites
 
-Either from the menu bar — open any tier and pick **＋ Add a site…**, then paste a
-link — or from the command line:
+Either from the menu bar — **＋ Add a site…** at the bottom of the panel, or inside
+any tier's submenu — then paste a link. Or from the command line:
 
 ```bash
 ./venv/bin/python -m friction block https://reddit.com/r/all --tier tier2
@@ -166,7 +205,11 @@ Accessibility permission to quit apps.
 ./uninstall.sh
 ```
 
-Unloads the LaunchAgent and removes the state directory. Your config is left alone.
+Unloads both LaunchAgents, removes the launcher app, and deletes the state
+directory. Your config, your virtualenv, and the repo are left alone.
+
+Automation permissions have to be revoked by hand in System Settings if you want
+those gone too.
 
 ## Documentation
 
