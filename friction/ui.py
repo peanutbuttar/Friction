@@ -106,6 +106,17 @@ class FrictionApp(rumps.App):
             self._add_items[tier] = header[f"add-{tier}"]
             self.menu.add(header)
 
+        # Also at the top level, not only buried at the bottom of each tier:
+        # adding a site is a thing people do in the moment, so it has to be
+        # findable without hunting.
+        self.menu.add(rumps.separator)
+        add_menu = rumps.MenuItem("＋  Add a site…")
+        for tier, tier_cfg in self.cfg["tiers"].items():
+            label = tier_cfg.get("label", tier)
+            add_menu.add(rumps.MenuItem(
+                f"to {label}", callback=functools.partial(self._add_site, tier)))
+        self.menu.add(add_menu)
+
         self.menu.add(rumps.separator)
         self.menu.add(rumps.MenuItem("Quit Friction…", callback=self._quit_clicked))
         self._refresh()
