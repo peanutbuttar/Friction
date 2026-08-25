@@ -114,7 +114,16 @@ class Daemon:
     def run(self) -> int:
         """Start enforcement and block until stopped."""
         from Foundation import NSRunLoop
-        from AppKit import NSApplication  # noqa: F401 - initialises the app context
+        from AppKit import NSApplication, NSApplicationActivationPolicyProhibited
+
+        # Without this the daemon registers as a REGULAR application, so macOS
+        # asks it to quit at logout and waits for an answer it cannot give --
+        # it has no bundle, so the quit Apple Event is never delivered. Result:
+        # shutdown stalls and offers to force quit "Python". It has no UI, so
+        # Prohibited is what it should have been. launchd still stops it with
+        # SIGTERM, which it handles in ~0.4s.
+        NSApplication.sharedApplication().setActivationPolicy_(
+            NSApplicationActivationPolicyProhibited)
 
         log.info("frictiond starting%s", " (DRY RUN)" if self.dry_run else "")
         log.info("%d items armed right now", len(self._armed()))

@@ -14,7 +14,10 @@ import functools
 import logging
 from datetime import datetime
 
+import objc
 import rumps
+from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory,
+                    NSTerminateNow)
 
 from friction import config as cfgmod
 from friction import notify
@@ -345,9 +348,60 @@ class FrictionApp(rumps.App):
         self._refresh()
 
 
+_power_off_observer = None
+
+
+def _make_shutdown_safe() -> None:
+    """Answer the quit request macOS sends at logout, and stop being a Dock app.
+
+    At logout, macOS asks every GUI application to quit and WAITS for a reply.
+    rumps never implements applicationShouldTerminate_, so the panel never
+    answers -- shutdown stalls and eventually offers to force quit "Python".
+    Measured: a polite quit went unanswered for 25s.
+
+    Two fixes. The delegate now says yes immediately. And the process becomes an
+    accessory app, which is what a menu bar app should have been all along --
+    no Dock icon, no app switcher entry.
+    """
+    from rumps.rumps import NSApp as RumpsDelegate
+
+    if not RumpsDelegate.instancesRespondToSelector_("applicationShouldTerminate:"):
+        def applicationShouldTerminate_(self, sender):   # noqa: N802 - ObjC selector
+            return NSTerminateNow
+
+        objc.classAddMethods(RumpsDelegate, [
+            objc.selector(applicationShouldTerminate_,
+                          selector=b"applicationShouldTerminate:",
+                          signature=b"Q@:@")])
+
+    NSApplication.sharedApplication().setActivationPolicy_(
+        NSApplicationActivationPolicyAccessory)
+
+    # The quit Apple Event is never delivered to this process -- verified: an
+    # explicit handler for it never fired. So instead of waiting to be asked,
+    # listen for the shutdown itself and leave. NSWorkspace notifications DO
+    # reach us; the app blocker already depends on that working.
+    from AppKit import (NSWorkspace, NSWorkspaceWillPowerOffNotification)
+    from Foundation import NSObject
+
+    class _PowerOff(NSObject):
+        def powerOff_(self, note):                       # noqa: N802 - ObjC selector
+            log.info("shutdown starting; quitting so it doesn't wait for us")
+            rumps.quit_application()
+
+    global _power_off_observer
+    _power_off_observer = _PowerOff.alloc().init()
+    NSWorkspace.sharedWorkspace().notificationCenter() \
+        .addObserver_selector_name_object_(
+            _power_off_observer, "powerOff:",
+            NSWorkspaceWillPowerOffNotification, None)
+
+
 def run() -> int:
     """Start the menu bar app. Blocks until quit."""
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
-    FrictionApp().run()
+    app = FrictionApp()
+    _make_shutdown_safe()
+    app.run()
     return 0

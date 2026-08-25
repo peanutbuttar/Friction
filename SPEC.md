@@ -197,6 +197,33 @@ Measured on the target machine (macOS 15.6, arm64, Python 3.14.6):
 | Chrome tab enumeration, 10 tabs | 107 ms total (~86 ms is the Apple event) |
 | Full Disk Access | absent; designed around |
 
+### 3.0 Activation policy, and why shutdown used to hang
+
+Both processes call into AppKit, which by default registers them as **regular
+applications**. macOS then asks every regular application to quit at logout and
+waits for a reply -- and neither process can reply, because neither has an app
+bundle, so the quit Apple Event is never delivered to it. Verified directly: an
+explicit `kAEQuitApplication` handler installed in the UI never fired, and a
+polite `terminate()` went unanswered for 25 seconds. The visible symptom was a
+long stall at shutdown ending in "force quit Python?".
+
+Fixed by setting activation policy explicitly:
+
+| Process | Policy | Why |
+|---|---|---|
+| `frictiond` | **Prohibited** | it has no UI at all, so logout should ignore it |
+| menu bar UI | **Accessory** | it needs a status item, but not a Dock icon |
+
+The UI additionally observes `NSWorkspaceWillPowerOffNotification` and quits
+itself when shutdown begins, rather than waiting to be asked through a channel
+that does not reach it. NSWorkspace notifications *are* delivered to these
+processes -- app blocking already depends on that.
+
+Measured after the change: app blocking still quits a launched app in 0.48s, and
+the browser sweep still closes tabs, so neither policy change costs anything.
+Both processes handle SIGTERM in under half a second, which is how launchd stops
+them once they are out of the logout queue.
+
 ### 3.1 Why apps are event-driven and browsers are polled
 
 An Apple event is inter-process RPC handled on the **target app's main thread** — the
