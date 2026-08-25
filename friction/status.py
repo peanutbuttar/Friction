@@ -16,7 +16,7 @@ def run(when: datetime | None = None) -> int:
     state = st.load()
 
     armed = S.armed(now, cfg, state)
-    armed_keys = {i.target for i in armed}
+    armed_keys = {i.key for i in armed}
 
     print(f"\n\033[1mFriction — status at {now.strftime('%a %H:%M')}\033[0m\n")
 
@@ -37,7 +37,7 @@ def run(when: datetime | None = None) -> int:
         for item in sorted(S.items(cfg), key=lambda i: (i.kind, i.target)):
             if item.tier != tier:
                 continue
-            if item.target in armed_keys:
+            if item.key in armed_keys:
                 mark, why = "\033[31m✗\033[0m", "blocked"
             elif S.pass_active(now, item.key, state):
                 exp = st.parse(state["passes"][item.key])

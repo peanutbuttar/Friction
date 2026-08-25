@@ -55,9 +55,11 @@ def covered_by(rule: str, config: dict) -> tuple[str, str] | None:
     'old.reddit.com' when 'reddit.com' is already covering it.
     """
     for tier, tier_cfg in config["tiers"].items():
-        for existing in tier_cfg.get("sites", []):
-            if host_matches(rule, existing):
-                return tier, existing
+        for entry in tier_cfg.get("sites", []):
+            # An entry may be a single domain or a list covering one service.
+            for existing in ((entry,) if isinstance(entry, str) else entry):
+                if host_matches(rule, existing):
+                    return tier, existing
     return None
 
 
@@ -81,6 +83,9 @@ def add_site(raw_url: str, tier: str, path: Path | None = None) -> str:
         raise EditError(f"{rule} is already covered by {found_rule!r} in {found_tier}")
 
     config["tiers"][tier].setdefault("sites", []).append(rule)
-    config["tiers"][tier]["sites"].sort()
+    # Grouped entries are lists; sort by their first domain so mixed lists of
+    # strings and lists stay in a stable, readable order.
+    config["tiers"][tier]["sites"].sort(
+        key=lambda e: e if isinstance(e, str) else e[0])
     path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
     return rule

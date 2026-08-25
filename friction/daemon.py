@@ -77,11 +77,13 @@ class Daemon:
 
     def armed_apps(self) -> set[str]:
         """Bundle IDs that should be blocked right now."""
-        return {i.target for i in self._armed() if i.kind == "app"}
+        return {d for i in self._armed() if i.kind == "app" for d in i.domains}
 
     def armed_sites(self) -> list[str]:
         """Domain rules that should be blocked right now."""
-        return [i.target for i in self._armed() if i.kind == "site"]
+        # Flattened: an item may cover several domains (x.com AND twitter.com),
+        # and the matcher needs each one, not the display label joining them.
+        return [d for i in self._armed() if i.kind == "site" for d in i.domains]
 
     # -- the browser thread -------------------------------------------------
 

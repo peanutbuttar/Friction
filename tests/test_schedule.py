@@ -298,3 +298,55 @@ def test_global_unlock_terms_come_from_config(config):
     config["global_switch"] = {"unlock_minutes": 30, "mode": "choice"}
     plan = S.global_unlock_plan(config)
     assert plan.minutes == 30 and plan.offer_choice
+
+
+# --- one lock covering several domains --------------------------------------
+
+def test_grouped_domains_are_a_single_item(config):
+    """x.com and twitter.com are one service; they must be one lock."""
+    config["tiers"]["tier3"]["sites"] = [["x.com", "twitter.com"], "tiktok.com"]
+    sites = [i for i in S.items(config) if i.tier == "tier3" and i.kind == "site"]
+    assert len(sites) == 2
+    grouped = next(i for i in sites if "x.com" in i.domains)
+    assert grouped.domains == ("x.com", "twitter.com")
+    assert grouped.target == "x.com / twitter.com"
+
+
+def test_group_key_is_the_first_domain(config):
+    """Keeps unlocks recorded before the grouping still valid."""
+    config["tiers"]["tier3"]["sites"] = [["x.com", "twitter.com"]]
+    it = next(i for i in S.items(config) if i.kind == "site" and i.tier == "tier3")
+    assert it.key == "tier3:x.com"
+
+
+def test_unlocking_a_group_unlocks_every_domain_in_it(config, state):
+    config["tiers"]["tier3"]["sites"] = [["x.com", "twitter.com"]]
+    it = next(i for i in S.items(config) if i.kind == "site" and i.tier == "tier3")
+    assert it in S.armed(at(12), config, state)
+    S.grant_pass(state, it.key, at(12), 5)
+    assert it not in S.armed(at(12, 1), config, state)
+
+
+def test_plain_string_entries_still_work(config):
+    config["tiers"]["tier2"]["sites"] = ["reddit.com"]
+    it = next(i for i in S.items(config) if i.tier == "tier2" and i.kind == "site")
+    assert it.domains == ("reddit.com",) and it.target == "reddit.com"
+
+
+def test_empty_group_is_skipped(config):
+    config["tiers"]["tier2"]["sites"] = [[], "reddit.com"]
+    sites = [i for i in S.items(config) if i.tier == "tier2" and i.kind == "site"]
+    assert len(sites) == 1
+
+
+def test_matcher_rules_are_flattened_not_the_display_label(config, state):
+    """The daemon feeds domains to the matcher, never the joined label.
+
+    Passing item.target would produce the rule "x.com / twitter.com", which
+    matches nothing at all -- a silent unblock of both.
+    """
+    config["tiers"]["tier3"]["sites"] = [["x.com", "twitter.com"]]
+    armed = S.armed(at(12), config, state)
+    rules = [d for i in armed if i.kind == "site" for d in i.domains]
+    assert "x.com" in rules and "twitter.com" in rules
+    assert not any("/" in r for r in rules)

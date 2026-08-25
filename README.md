@@ -53,8 +53,8 @@ application rather than a browser.
 
 | | Arms | Releases | Unlock costs |
 |---|---|---|---|
-| **Tier 3** | 06:00 daily | 20:00 | Confirm, then transcribe a 200–500 word passage |
-| **Tier 2** | 06:00 daily | 18:00 | Confirm, then one arithmetic problem |
+| **Tier 3** | 06:00 daily | 21:00 | Confirm, then transcribe a 200–500 word passage |
+| **Tier 2** | 06:00 daily | 19:00 | Confirm, then one arithmetic problem |
 | **Tier 1** | manual only | manual only | Confirm |
 
 ![The Tier 3 transcription challenge](docs/screenshots/challenge-transcription.png)
@@ -180,6 +180,22 @@ on. A leading `www.` is stripped deliberately: rules match downwards, so
 cover the bare `reddit.com`. It also refuses anything already covered — adding
 `old.reddit.com` when `reddit.com` is blocked tells you so instead of quietly
 adding a redundant rule.
+
+**One service reached by two names is one lock.** `x.com` and `twitter.com` are
+the same place, so they're grouped into a single entry — one padlock in the menu,
+one challenge to open, both domains released together. Same for
+`youtube.com`/`youtu.be` and `hbomax.com`/`max.com`. In the config a group is
+just a list instead of a string:
+
+```json
+"sites": [
+  ["x.com", "twitter.com"],
+  "tiktok.com"
+]
+```
+
+The first domain is the group's identity, so adding an alias to an entry you've
+already unlocked before doesn't void that history.
 
 **Removing a site means editing `config.local.json` by hand.** That asymmetry is
 deliberate: getting stricter should be effortless, getting laxer should not.

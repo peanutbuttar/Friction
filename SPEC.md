@@ -28,6 +28,13 @@ the daemon calls `terminate()` on it. There is **no polling** for apps.
 any that match a rule. This must be polled; default sweep is every 10 seconds, and
 browsers that aren't running are skipped entirely.
 
+**A site entry may be a single domain or a list of domains** for one service
+reached by several names (`x.com` and `twitter.com`). A group is one item: one
+menu row, one challenge, one pass covering every domain in it. The group's key is
+its FIRST domain, so folding an alias into an existing entry does not invalidate
+unlocks already recorded against it. The matcher always receives the flattened
+domains, never the joined display label.
+
 **Site matching** is by domain *and all subdomains*: a rule of `reddit.com` matches
 `reddit.com`, `www.reddit.com`, `old.reddit.com` and `m.reddit.com`. It does not match
 unrelated domains owned by the same service, so `x.com`/`twitter.com`,
@@ -41,8 +48,8 @@ Firefox does not expose its tabs to AppleScript, so it is treated as a blocked
 | | Arms | Releases | Unlock challenge | Pass duration |
 |---|---|---|---|---|
 | **Tier 1** | manual | manual | Confirm | 30 min |
-| **Tier 2** | 06:00 daily | 18:00 | Confirm, then one arithmetic problem | 15 min |
-| **Tier 3** | 06:00 daily | 20:00 | Confirm, then transcribe a 200–500 word passage | 5 min |
+| **Tier 2** | 06:00 daily | 19:00 | Confirm, then one arithmetic problem | 15 min |
+| **Tier 3** | 06:00 daily | 21:00 | Confirm, then transcribe a 200–500 word passage | 5 min |
 
 **Every tier confirms first.** The extra friction of tiers 2 and 3 comes *after* the
 "are you sure?", never instead of it.

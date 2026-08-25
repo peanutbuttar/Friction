@@ -16,12 +16,18 @@ from friction.state import parse
 
 @dataclass(frozen=True)
 class Item:
-    """One blockable thing, plus the two keys its lock state can live under."""
+    """One blockable thing, plus the two keys its lock state can live under.
+
+    A single item can cover several domains. x.com and twitter.com are one
+    service reached by two names, so they lock and unlock together rather than
+    appearing as two separate things you would have to beat twice.
+    """
     tier: str
-    kind: str       # "site" or "app"
-    target: str     # "reddit.com" or "com.valvesoftware.steam"
-    key: str        # this item alone, e.g. "tier2:reddit.com"
-    tier_key: str   # the whole tier, e.g. "tier2"
+    kind: str                    # "site" or "app"
+    target: str                  # what to show: "x.com / twitter.com"
+    domains: tuple[str, ...]     # what to match: ("x.com", "twitter.com")
+    key: str                     # this item alone, e.g. "tier2:reddit.com"
+    tier_key: str                # the whole tier, e.g. "tier2"
 
     @property
     def is_app(self) -> bool:
@@ -58,18 +64,32 @@ def _hhmm(value: str) -> time:
     return time(int(hh), int(mm))
 
 
+def _entry_domains(entry: Any) -> tuple[str, ...]:
+    """A config entry is a single name, or a list of names for one service."""
+    if isinstance(entry, str):
+        return (entry,)
+    return tuple(entry)
+
+
 def items(config: dict[str, Any]) -> list[Item]:
     """Every blockable item across all tiers.
 
-    Every item now carries both an individual key and its tier key, so a tier
-    can be locked as a whole AND item by item without the two fighting.
+    Every item carries both an individual key and its tier key, so a tier can be
+    locked as a whole AND item by item without the two fighting. The key is the
+    entry's FIRST domain, so grouping aliases onto an existing entry does not
+    invalidate unlocks already recorded against it.
     """
     out: list[Item] = []
     for tier, cfg in config["tiers"].items():
         for kind, field in (("site", "sites"), ("app", "apps")):
-            for target in cfg.get(field, []):
-                out.append(Item(tier=tier, kind=kind, target=target,
-                                key=f"{tier}:{target}", tier_key=tier))
+            for entry in cfg.get(field, []):
+                domains = _entry_domains(entry)
+                if not domains:
+                    continue
+                out.append(Item(tier=tier, kind=kind,
+                                target=" / ".join(domains),
+                                domains=domains,
+                                key=f"{tier}:{domains[0]}", tier_key=tier))
     return out
 
 

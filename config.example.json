@@ -27,14 +27,16 @@
       "schedule": {
         "mode": "daily",
         "arms": "06:00",
-        "releases": "18:00"
+        "releases": "19:00"
       },
       "challenge": "arithmetic",
       "unlock_minutes": 15,
       "sites": [
         "reddit.com",
-        "twitter.com",
-        "x.com"
+        [
+          "x.com",
+          "twitter.com"
+        ]
       ],
       "apps": [
         "com.example.SomeApp"
@@ -48,7 +50,7 @@
       "schedule": {
         "mode": "daily",
         "arms": "06:00",
-        "releases": "20:00"
+        "releases": "21:00"
       },
       "challenge": "transcription",
       "unlock_minutes": 5,
@@ -113,5 +115,6 @@
     "mode": "choice",
     "_comment": "One switch locking every app and site at once. Locking is free; unlocking costs a confirmation plus the transcription. Its unlock releases ONLY this lock -- schedule locks and per-item locks still apply, so it cannot be used to bypass the tiers."
   },
-  "_switches": "whole_tier_switch gives a tier a lock-all/unlock-all row. Only tier 1 has one; tiers 2 and 3 are per-item on purpose, so one challenge cannot open the whole tier."
+  "_switches": "whole_tier_switch gives a tier a lock-all/unlock-all row. Only tier 1 has one; tiers 2 and 3 are per-item on purpose, so one challenge cannot open the whole tier.",
+  "_grouping": "A site entry can be a single domain, or a list of domains for one service reached by several names (x.com and twitter.com). A group locks and unlocks as one thing. The FIRST domain is the key, so adding an alias to an existing entry does not void unlocks already recorded against it."
 }
