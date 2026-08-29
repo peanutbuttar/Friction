@@ -79,3 +79,14 @@ def test_broken_snapshot_does_not_mask_the_real_error(paths):
     paths.write_text("{ broken")
     with pytest.raises(C.ConfigError):
         C.load_resilient()
+
+
+def test_force_quit_is_read_from_config(paths, config):
+    """The daemon reads force_quit from config; absent means nobody gets forced."""
+    import json
+    cfg = C.load()
+    assert cfg.get("force_quit", []) == []
+
+    config["force_quit"] = ["com.example.Stubborn"]
+    paths.write_text(json.dumps(config))
+    assert C.load()["force_quit"] == ["com.example.Stubborn"]

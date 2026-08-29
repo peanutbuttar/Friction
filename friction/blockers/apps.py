@@ -30,7 +30,8 @@ class AppBlocker:
     RETRY_DELAYS = (2.0, 4.0, 8.0)
 
     def __init__(self, armed_apps: Callable[[], set[str]],
-                 on_quit: Callable[[str], None] | None = None) -> None:
+                 on_quit: Callable[[str], None] | None = None,
+                 force_quit: Callable[[], set[str]] | None = None) -> None:
         """Store the callback that reports which bundle IDs are currently locked.
 
         It is a callback rather than a list so the blocker always sees the live
@@ -38,6 +39,9 @@ class AppBlocker:
         """
         self._armed_apps = armed_apps
         self._on_quit = on_quit
+        # Bundle ids allowed to be force-quit once polite requests have failed.
+        # Opt-in only: force-quitting an app with unsaved work destroys it.
+        self._force_quit = force_quit or (lambda: set())
         self._observer = None
         self._timers: set[threading.Timer] = set()
         self._announced: dict[str, float] = {}   # bid -> last time we logged it
@@ -143,13 +147,34 @@ class AppBlocker:
     def _schedule_recheck(self, bid: str, attempt: int) -> None:
         """Confirm it actually went away; a polite quit can simply be ignored."""
         if attempt >= len(self.RETRY_DELAYS):
-            log.warning("%s is resisting quit after %d attempts; giving up. "
-                        "Friction does not force-kill.", bid, attempt)
+            if bid in self._force_quit():
+                self._force(bid)
+            else:
+                log.warning("%s is resisting quit after %d attempts; giving up. "
+                            "Add it to force_quit in the config if it should be "
+                            "made to close.", bid, attempt)
             return
         timer = threading.Timer(self.RETRY_DELAYS[attempt], self._recheck, (bid, attempt))
         timer.daemon = True
         self._timers.add(timer)
         timer.start()
+
+    def _force(self, bid: str) -> None:
+        """Force-quit an app that ignores the polite request.
+
+        Only for bundle ids the config explicitly lists. Electron-based
+        launchers routinely swallow the quit Apple Event, so without this they
+        simply cannot be blocked -- but forcing an app that holds unsaved work
+        would destroy it, which is why this is never automatic.
+        """
+        from AppKit import NSRunningApplication
+        try:
+            for app in NSRunningApplication.runningApplicationsWithBundleIdentifier_(bid):
+                app.forceTerminate()
+            log.warning("%s ignored every quit request; force-quit (listed in "
+                        "force_quit)", bid)
+        except Exception as e:  # noqa: BLE001
+            log.warning("could not force-quit %s: %s", bid, e)
 
     def _recheck(self, bid: str, attempt: int) -> None:
         """Re-quit an app that ignored the first request, unless it was unlocked meanwhile."""

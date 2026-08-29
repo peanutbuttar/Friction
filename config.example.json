@@ -116,5 +116,7 @@
     "_comment": "One switch locking every app and site at once. Locking is free; unlocking costs a confirmation plus the transcription. Its unlock releases ONLY this lock -- schedule locks and per-item locks still apply, so it cannot be used to bypass the tiers."
   },
   "_switches": "whole_tier_switch gives a tier a lock-all/unlock-all row. Only tier 1 has one; tiers 2 and 3 are per-item on purpose, so one challenge cannot open the whole tier.",
-  "_grouping": "A site entry can be a single domain, or a list of domains for one service reached by several names (x.com and twitter.com). A group locks and unlocks as one thing. The FIRST domain is the key, so adding an alias to an existing entry does not void unlocks already recorded against it."
+  "_grouping": "A site entry can be a single domain, or a list of domains for one service reached by several names (x.com and twitter.com). A group locks and unlocks as one thing. The FIRST domain is the key, so adding an alias to an existing entry does not void unlocks already recorded against it.",
+  "force_quit": [],
+  "_force_quit": "Bundle ids that may be FORCE-quit if they ignore every polite quit request. Opt-in only. Electron-based launchers (the Minecraft launcher) swallow the quit event and cannot be blocked otherwise. Never list an app that holds unsaved work -- forcing it destroys that work."
 }

@@ -350,3 +350,8 @@ def test_matcher_rules_are_flattened_not_the_display_label(config, state):
     rules = [d for i in armed if i.kind == "site" for d in i.domains]
     assert "x.com" in rules and "twitter.com" in rules
     assert not any("/" in r for r in rules)
+
+
+def test_force_quit_list_defaults_to_empty(config):
+    """Force-quitting must never happen unless explicitly configured."""
+    assert set(config.get("force_quit", [])) == set()

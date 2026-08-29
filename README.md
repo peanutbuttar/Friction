@@ -211,6 +211,25 @@ already unlocked before doesn't void that history.
 **Removing a site means editing `config.local.json` by hand.** That asymmetry is
 deliberate: getting stricter should be effortless, getting laxer should not.
 
+## Apps that refuse to close
+
+Blocked apps are asked to quit, then asked again at 2s, 4s and 8s. Most comply.
+Some never do — Electron-based launchers routinely swallow the quit request, and
+the Minecraft launcher is one of them.
+
+For those, list the bundle id under `force_quit` in `config.local.json` and
+Friction will force it closed once the polite attempts have failed:
+
+```json
+"force_quit": ["com.mojang.minecraftlauncher"]
+```
+
+This is **opt-in per app on purpose**. Forcing an app that holds unsaved work
+destroys that work, so nothing is ever forced unless you list it. A launcher
+holds nothing; a text editor does.
+
+To find a bundle id: `osascript -e 'id of app "Minecraft"'`
+
 ## Permissions
 
 macOS will not let this work until you grant Automation access by hand, in

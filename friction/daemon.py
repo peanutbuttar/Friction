@@ -49,7 +49,8 @@ class Daemon:
             log.error("config is invalid (%s) -- running on the last good copy. "
                       "Fix it and this reloads on its own.", self._cfg_error)
         self._cfg_mtime = self._config_mtime()
-        self._app_blocker = AppBlocker(armed_apps=self.armed_apps)
+        self._app_blocker = AppBlocker(armed_apps=self.armed_apps,
+                                       force_quit=self.force_quit_apps)
 
     # -- current decisions, recomputed on demand ----------------------------
 
@@ -87,6 +88,10 @@ class Daemon:
     def armed_apps(self) -> set[str]:
         """Bundle IDs that should be blocked right now."""
         return {d for i in self._armed() if i.kind == "app" for d in i.domains}
+
+    def force_quit_apps(self) -> set[str]:
+        """Bundle ids the config permits force-quitting when they resist."""
+        return set(self._cfg.get("force_quit", []))
 
     def armed_sites(self) -> list[str]:
         """Domain rules that should be blocked right now."""
