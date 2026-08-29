@@ -165,6 +165,17 @@ repository public.
 
 State lives in `~/Library/Application Support/Friction/state.json` and is not tracked.
 
+**A typo won't take blocking down.** Friction keeps a copy of the last config
+that parsed. If `config.local.json` becomes invalid — a missing comma is the
+usual way — both processes keep running on those last known-good settings,
+enforcement continues, and the menu bar says the config is broken. Fix the file
+and it reloads on its own within a few seconds, no restart. To check a file
+before trusting it:
+
+```bash
+./venv/bin/python -m friction doctor
+```
+
 ## Adding sites
 
 Either from the menu bar — **＋ Add a site…** at the bottom of the panel, or inside

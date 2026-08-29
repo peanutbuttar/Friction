@@ -44,7 +44,10 @@ class Daemon:
         """Load config and prepare the app blocker. Nothing starts until run()."""
         self.dry_run = dry_run
         self._stop = threading.Event()
-        self._cfg = cfgmod.load()
+        self._cfg, self._cfg_error = cfgmod.load_resilient()
+        if self._cfg_error:
+            log.error("config is invalid (%s) -- running on the last good copy. "
+                      "Fix it and this reloads on its own.", self._cfg_error)
         self._cfg_mtime = self._config_mtime()
         self._app_blocker = AppBlocker(armed_apps=self.armed_apps)
 
@@ -62,12 +65,18 @@ class Daemon:
         """Pick up config edits without needing a restart."""
         mtime = self._config_mtime()
         if mtime != self._cfg_mtime:
+            self._cfg_mtime = mtime
             try:
                 self._cfg = cfgmod.load()
-                self._cfg_mtime = mtime
-                log.info("config reloaded")
+                if self._cfg_error:
+                    log.info("config is valid again; reloaded")
+                    self._cfg_error = None
+                else:
+                    log.info("config reloaded")
             except cfgmod.ConfigError as e:
-                log.error("config reload failed, keeping previous: %s", e)
+                self._cfg_error = str(e)
+                log.error("config is invalid (%s) -- keeping the previous one. "
+                          "Enforcement continues.", e)
 
     def _armed(self, now: datetime | None = None):
         # State is re-read every time: the UI writes it, and a stale read here
@@ -158,5 +167,7 @@ def run(dry_run: bool = False, verbose: bool = False) -> int:
     try:
         return Daemon(dry_run=dry_run).run()
     except cfgmod.ConfigError as e:
+        # Only reachable when there is no config AND no last-good snapshot,
+        # i.e. a fresh install that was never configured.
         log.error("cannot start: %s", e)
         return 1

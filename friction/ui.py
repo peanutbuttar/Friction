@@ -46,7 +46,7 @@ class FrictionApp(rumps.App):
     def __init__(self) -> None:
         """Load config, build the menu, and start the once-a-second refresh."""
         super().__init__("Friction", title=LOCKED, quit_button=None)
-        self.cfg = cfgmod.load()
+        self.cfg, self._cfg_error = cfgmod.load_resilient()
         self._cfg_mtime = self._mtime()
         self._entries: dict[str, rumps.MenuItem] = {}   # item key -> menu item
         self._tier_all: dict[str, rumps.MenuItem] = {}  # tier    -> "all" item
@@ -76,6 +76,14 @@ class FrictionApp(rumps.App):
         # rumps keys menu items by their title, so these need DISTINCT initial
         # titles or the second silently replaces the first. Later title updates
         # do not re-key them.
+        # A broken config is survivable, but the user has to know the settings
+        # they are looking at are stale.
+        if self._cfg_error:
+            self.menu.add(rumps.MenuItem(
+                "⚠️  config.local.json is invalid — using last saved settings",
+                callback=self._config_error_clicked))
+            self.menu.add(rumps.separator)
+
         self._master = rumps.MenuItem("master", callback=self._master_clicked)
         self.menu.add(self._master)
         self.menu.add(rumps.separator)
@@ -130,7 +138,7 @@ class FrictionApp(rumps.App):
         """Refresh titles once a second, rebuilding fully only if the config changed."""
         try:
             if self._mtime() != self._cfg_mtime:
-                self.cfg = cfgmod.load()
+                self.cfg, self._cfg_error = cfgmod.load_resilient()
                 self._cfg_mtime = self._mtime()
                 self._build()
                 return
@@ -271,10 +279,17 @@ class FrictionApp(rumps.App):
             rumps.alert("Couldn't add it", str(e))
             return
         # The config changed on disk, so rebuild rather than just retitle.
-        self.cfg = cfgmod.load()
+        self.cfg, self._cfg_error = cfgmod.load_resilient()
         self._cfg_mtime = self._mtime()
         self._build()
         rumps.alert("Blocked", f"{rule} is now in {label}.")
+
+    def _config_error_clicked(self, _sender) -> None:
+        rumps.alert(
+            "config.local.json can't be read",
+            f"{self._cfg_error}\n\nFriction is running on the last settings that "
+            f"worked, so blocking is still enforced. Fix the file and it reloads "
+            f"by itself — no restart needed.\n\nA missing comma is the usual cause.")
 
     def _quit_clicked(self, _sender) -> None:
         """Quitting the UI leaves enforcement running with no way to unlock.
