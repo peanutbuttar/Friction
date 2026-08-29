@@ -40,11 +40,26 @@ class AppBlocker:
         self._on_quit = on_quit
         self._observer = None
         self._timers: set[threading.Timer] = set()
+        self._announced: dict[str, float] = {}   # bid -> last time we logged it
 
     # -- the sweep for apps that were already running at startup ------------
 
-    def quit_running(self) -> list[str]:
-        """Quit anything blocked that is already open. Cheap: no Apple Events."""
+    def quit_running(self, quiet: bool = False) -> list[str]:
+        """Quit anything blocked that is already open. Cheap: no Apple Events.
+
+        Called at startup AND periodically, because launch notifications are not
+        enough on their own:
+
+        * An app launched through a URL handler (roblox:// from a browser) can
+          report no bundle identifier at the instant it launches, so the
+          notification arrives with nothing to match on and is skipped.
+        * An app that resists the quit retries would otherwise be given up on
+          permanently.
+        * An app opened while a tier was unlocked would keep running after the
+          tier re-armed.
+
+        Re-checking costs a process list read -- no Apple Events, microseconds.
+        """
         from AppKit import NSWorkspace
 
         armed = self._armed_apps()
@@ -55,7 +70,7 @@ class AppBlocker:
             bid = app.bundleIdentifier()
             if bid in armed:
                 quit_now.append(bid)
-                self._terminate(app, bid)
+                self._terminate(app, bid, quiet=quiet)
         return quit_now
 
     # -- the live listener --------------------------------------------------
@@ -106,7 +121,7 @@ class AppBlocker:
             .removeObserver_(self._observer)
         self._observer = None
 
-    def _terminate(self, app, bid: str, attempt: int = 0) -> None:
+    def _terminate(self, app, bid: str, attempt: int = 0, quiet: bool = False) -> None:
         """Ask an app to quit, then schedule a check that it actually did."""
         try:
             app.terminate()
@@ -114,7 +129,13 @@ class AppBlocker:
             log.warning("could not quit %s: %s", bid, e)
             return
         if attempt == 0:
-            log.info("quit blocked app: %s", bid)
+            # A periodic sweep re-asking a stubborn app every few seconds would
+            # fill the log with the same line forever. Say it once a minute.
+            import time
+            last = self._announced.get(bid, 0.0)
+            if not quiet or time.time() - last > 60:
+                self._announced[bid] = time.time()
+                log.info("quit blocked app: %s", bid)
             if self._on_quit:
                 self._on_quit(bid)
         self._schedule_recheck(bid, attempt)
@@ -138,7 +159,10 @@ class AppBlocker:
                 return                                  # unlocked in the meantime
             still = NSRunningApplication.runningApplicationsWithBundleIdentifier_(bid)
             if not still:
-                return                                  # it quit, as asked
+                # It went away, so the next launch is genuinely new news and
+                # should be logged rather than swallowed by the repeat filter.
+                self._announced.pop(bid, None)
+                return
             log.info("%s still running after quit, retrying (%d)", bid, attempt + 1)
             self._terminate(still[0], bid, attempt + 1)
         except Exception as e:                          # noqa: BLE001

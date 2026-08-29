@@ -22,7 +22,22 @@ Two processes share a state file:
 
 **Applications** are blocked by subscribing to `NSWorkspaceDidLaunchApplicationNotification`.
 The OS pushes a notification the instant an app launches; if it is blocked and armed,
-the daemon calls `terminate()` on it. There is **no polling** for apps.
+the daemon calls `terminate()` on it -- measured at ~0.5s from launch to quit.
+
+That notification alone is **not sufficient**, so the sweep loop also re-checks the
+running applications each pass. Three cases it catches:
+
+* An app launched through a URL handler (`roblox://` from a browser) can report no
+  bundle identifier at the instant it launches, so the notification arrives with
+  nothing to match on. Observed with Roblox: it launched and was never noticed, while
+  Steam -- launched normally -- was quit immediately.
+* An app that resists the quit retries would otherwise be given up on permanently.
+* An app opened while a tier was unlocked would keep running after the tier re-armed.
+
+The re-check is a process list read, not an Apple Event, so it costs microseconds.
+Repeat log lines for an app that keeps resisting are throttled to one a minute, and
+the throttle clears once the app actually goes away so a genuine relaunch is not
+swallowed.
 
 **Websites** are blocked by enumerating open browser tabs via AppleScript and closing
 any that match a rule. This must be polled; default sweep is every 10 seconds, and

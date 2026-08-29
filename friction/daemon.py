@@ -107,6 +107,13 @@ class Daemon:
         while not self._stop.is_set():
             try:
                 self._maybe_reload_config()
+                # Safety net for app blocking. The launch notification handles
+                # the normal case in under half a second; this catches launches
+                # whose notification carried no bundle id, apps that resisted
+                # the quit retries, and anything opened while a tier was
+                # unlocked that should be blocked now the tier has re-armed.
+                if not self.dry_run:
+                    self._app_blocker.quit_running(quiet=True)
                 rules = self.armed_sites()
                 if rules:
                     closed = browsers.sweep(rules, enabled, dry_run=self.dry_run)
