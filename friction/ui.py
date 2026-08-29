@@ -55,6 +55,53 @@ class FrictionApp(rumps.App):
         self._build()
         self._timer = rumps.Timer(self._tick, TICK_SECONDS)
         self._timer.start()
+        self._watch_screen_changes()
+
+    # -- surviving a monitor being unplugged --------------------------------
+
+    def _watch_screen_changes(self) -> None:
+        """Rebuild the status item when the display layout changes.
+
+        A status item living on an external display can fail to re-place itself
+        on the built-in one when that display is unplugged: the app keeps
+        running, the menu keeps working, but the icon is nowhere to be found.
+        Rebuilding it against the current screen layout puts it back.
+        """
+        from AppKit import NSApplicationDidChangeScreenParametersNotification
+        from Foundation import NSNotificationCenter, NSObject
+
+        app = self
+
+        class _ScreenWatcher(NSObject):
+            def screensChanged_(self, note):          # noqa: N802 - ObjC selector
+                app._rebuild_status_item()
+
+        self._screen_watcher = _ScreenWatcher.alloc().init()
+        NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+            self._screen_watcher, "screensChanged:",
+            NSApplicationDidChangeScreenParametersNotification, None)
+
+    def _rebuild_status_item(self) -> None:
+        """Tear the status item down and make a fresh one on the current screens."""
+        from AppKit import NSStatusBar
+
+        nsapp = getattr(self, "_nsapp", None)
+        if nsapp is None:
+            return                                    # not launched yet
+        # Screen changes arrive in bursts; once per second is plenty.
+        now = datetime.now()
+        if (now - getattr(self, "_last_status_rebuild", datetime.min)).total_seconds() < 1:
+            return
+        self._last_status_rebuild = now
+        try:
+            old = getattr(nsapp, "nsstatusitem", None)
+            if old is not None:
+                NSStatusBar.systemStatusBar().removeStatusItem_(old)
+            nsapp.initializeStatusBar()
+            self._refresh()
+            log.info("display layout changed; status item rebuilt")
+        except Exception as e:  # noqa: BLE001 - never let this kill the UI
+            log.exception("could not rebuild the status item: %s", e)
 
     # -- structure (built once) --------------------------------------------
 
