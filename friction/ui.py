@@ -81,6 +81,44 @@ class FrictionApp(rumps.App):
             self._screen_watcher, "screensChanged:",
             NSApplicationDidChangeScreenParametersNotification, None)
 
+    def _fixup_status_item(self) -> bool:
+        """Make the icon stick, and record where macOS actually put it.
+
+        Two things macOS needs from us that rumps does not do:
+
+        `autosaveName` — without it the item has no remembered position, so it
+        is the first thing dropped when the menu bar runs out of room. With it,
+        wherever you drag it is where it stays.
+
+        `setVisible_(True)` — the visibility flag can be left off after a
+        display change, which hides the icon while the app carries on happily.
+        """
+        from AppKit import NSScreen
+
+        nsapp = getattr(self, "_nsapp", None)
+        item = getattr(nsapp, "nsstatusitem", None) if nsapp else None
+        if item is None:
+            return False        # not built yet; the caller will try again
+        try:
+            item.setAutosaveName_("FrictionStatusItem")
+            item.setVisible_(True)
+
+            screens = [f"{int(s.frame().size.width)}x{int(s.frame().size.height)}"
+                       f"@{int(s.frame().origin.x)},{int(s.frame().origin.y)}"
+                       for s in NSScreen.screens()]
+            button = item.button()
+            where = "no button"
+            if button is not None and button.window() is not None:
+                f = button.window().frame()
+                where = (f"x={int(f.origin.x)} y={int(f.origin.y)} "
+                         f"w={int(f.size.width)} h={int(f.size.height)}")
+            log.info("status item: visible=%s length=%.0f at %s | screens: %s",
+                     item.isVisible(), item.length(), where, ", ".join(screens))
+            return True
+        except Exception as e:  # noqa: BLE001 - diagnostics must never break the UI
+            log.warning("could not inspect the status item: %s", e)
+            return False
+
     def _rebuild_status_item(self) -> None:
         """Tear the status item down and make a fresh one on the current screens."""
         from AppKit import NSStatusBar
@@ -99,6 +137,7 @@ class FrictionApp(rumps.App):
                 NSStatusBar.systemStatusBar().removeStatusItem_(old)
             nsapp.initializeStatusBar()
             self._refresh()
+            self._fixup_status_item()
             log.info("display layout changed; status item rebuilt")
         except Exception as e:  # noqa: BLE001 - never let this kill the UI
             log.exception("could not rebuild the status item: %s", e)
@@ -184,6 +223,13 @@ class FrictionApp(rumps.App):
     def _tick(self, _timer) -> None:
         """Refresh titles once a second, rebuilding fully only if the config changed."""
         try:
+            # macOS does not place the status item instantly, so settle first,
+            # then record where it landed. On a notched display an item placed
+            # near the middle of the screen is hidden behind the notch, which
+            # looks exactly like the app failing to start.
+            self._tick_count = getattr(self, "_tick_count", 0) + 1
+            if self._tick_count == 3:
+                self._fixup_status_item()
             if self._mtime() != self._cfg_mtime:
                 self.cfg, self._cfg_error = cfgmod.load_resilient()
                 self._cfg_mtime = self._mtime()
@@ -463,6 +509,7 @@ def run() -> int:
     """Start the menu bar app. Blocks until quit."""
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+    log.info("menu bar UI starting")
     app = FrictionApp()
     _make_shutdown_safe()
     app.run()
