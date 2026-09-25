@@ -41,6 +41,15 @@ def load(path: Path | None = None) -> dict[str, Any]:
         sched = tc.get("schedule", {})
         if sched.get("mode") == "daily" and not (sched.get("arms") and sched.get("releases")):
             raise ConfigError(f"{tier}: daily schedule needs both 'arms' and 'releases'")
+        weekend = sched.get("weekend")
+        if weekend is not None:
+            if not isinstance(weekend, dict):
+                raise ConfigError(f"{tier}: 'weekend' must be an object with "
+                                  f"'arms' and/or 'releases'")
+            unknown = set(weekend) - {"arms", "releases"}
+            if unknown:
+                raise ConfigError(f"{tier}: unknown key(s) in 'weekend': "
+                                  f"{', '.join(sorted(unknown))}")
 
     _snapshot(cfg)
     return cfg

@@ -51,11 +51,19 @@ application rather than a browser.
 
 ## Tiers
 
-| | Arms | Releases | Unlock costs |
-|---|---|---|---|
-| **Tier 3** | 06:00 daily | 21:00 | Confirm, then transcribe a 200–500 word passage |
-| **Tier 2** | 06:00 daily | 19:00 | Confirm, then one arithmetic problem |
-| **Tier 1** | manual only | manual only | Confirm |
+| | Arms | Releases (Mon–Fri) | Releases (Sat–Sun) | Unlock costs |
+|---|---|---|---|---|
+| **Tier 3** | 06:00 daily | 21:00 | **19:00** | Confirm, then transcribe a 200–500 word passage |
+| **Tier 2** | 06:00 daily | 19:00 | **17:00** | Confirm, then one arithmetic problem |
+| **Tier 1** | manual only | manual only | — | Confirm |
+
+Weekends let go earlier. A tier's schedule can carry a `weekend` block overriding
+either time on Saturday and Sunday; anything it leaves out keeps the weekday value:
+
+```json
+"schedule": { "mode": "daily", "arms": "06:00", "releases": "19:00",
+              "weekend": { "releases": "17:00" } }
+```
 
 ![The Tier 3 transcription challenge](docs/screenshots/challenge-transcription.png)
 

@@ -355,3 +355,85 @@ def test_matcher_rules_are_flattened_not_the_display_label(config, state):
 def test_force_quit_list_defaults_to_empty(config):
     """Force-quitting must never happen unless explicitly configured."""
     assert set(config.get("force_quit", [])) == set()
+
+
+# --- weekends run shorter ---------------------------------------------------
+
+def sat(h, m=0):
+    return datetime(2026, 9, 26, h, m)       # a Saturday
+
+
+def sun(h, m=0):
+    return datetime(2026, 9, 27, h, m)       # a Sunday
+
+
+def weekend_config(config):
+    config["tiers"]["tier2"]["schedule"]["weekend"] = {"releases": "17:00"}
+    config["tiers"]["tier3"]["schedule"]["weekend"] = {"releases": "19:00"}
+    return config
+
+
+def test_the_test_dates_really_are_a_weekend():
+    assert sat(12).weekday() == 5 and sun(12).weekday() == 6
+    assert at(12).weekday() < 5, "the weekday fixture must not be a weekend"
+
+
+def test_weekday_hours_are_unchanged(config, state):
+    """Fixture hours are 18:00 for tier 2 and 20:00 for tier 3."""
+    weekend_config(config)
+    assert "reddit.com" in targets(S.armed(at(17, 30), config, state))
+    assert "x.com" in targets(S.armed(at(19, 30), config, state))
+
+
+def test_saturday_tier2_releases_at_1700(config, state):
+    weekend_config(config)
+    assert "reddit.com" in targets(S.armed(sat(16, 59), config, state))
+    assert "reddit.com" not in targets(S.armed(sat(17, 1), config, state))
+
+
+def test_saturday_tier3_releases_at_1900(config, state):
+    weekend_config(config)
+    assert "x.com" in targets(S.armed(sat(18, 59), config, state))
+    assert "x.com" not in targets(S.armed(sat(19, 1), config, state))
+
+
+def test_sunday_behaves_like_saturday(config, state):
+    weekend_config(config)
+    assert "reddit.com" not in targets(S.armed(sun(17, 30), config, state))
+    assert "x.com" not in targets(S.armed(sun(19, 30), config, state))
+
+
+def test_weekend_still_arms_at_the_usual_time(config, state):
+    """Only the release time was shortened; mornings are unchanged."""
+    weekend_config(config)
+    assert "reddit.com" not in targets(S.armed(sat(5, 59), config, state))
+    assert "reddit.com" in targets(S.armed(sat(6, 1), config, state))
+
+
+def test_weekend_block_may_override_arms_too(config):
+    config["tiers"]["tier2"]["schedule"]["weekend"] = {"arms": "09:00", "releases": "17:00"}
+    tc = config["tiers"]["tier2"]
+    assert not S.in_schedule_window(sat(8), tc)
+    assert S.in_schedule_window(sat(10), tc)
+    assert S.in_schedule_window(at(8), tc), "weekdays keep the 06:00 start"
+
+
+def test_missing_weekend_block_means_same_hours_all_week(config, state):
+    """Tiers without a weekend block must be unaffected."""
+    config["tiers"]["tier3"]["schedule"].pop("weekend", None)
+    assert "x.com" in targets(S.armed(sat(19, 30), config, state))
+
+
+def test_next_boundary_crosses_into_the_weekend_correctly(config):
+    """Friday evening: the next boundary is Saturday's 06:00 arm, not a weekday time."""
+    weekend_config(config)
+    friday_night = datetime(2026, 9, 25, 23, 0)
+    assert friday_night.weekday() == 4
+    nb = S.next_boundary(friday_night, config["tiers"]["tier2"])
+    assert nb == datetime(2026, 9, 26, 6, 0)
+
+
+def test_next_boundary_uses_the_weekend_release_on_a_saturday(config):
+    weekend_config(config)
+    nb = S.next_boundary(sat(12), config["tiers"]["tier2"])
+    assert nb == datetime(2026, 9, 26, 17, 0), "should be 17:00, not the weekday 19:00"

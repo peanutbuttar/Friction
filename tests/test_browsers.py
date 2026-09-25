@@ -13,18 +13,30 @@ from friction.blockers import browsers
 
 class FakeTab:
     def __init__(self, url):
-        self._url, self.closed = url, False
+        self._url, self.closed, self.window = url, False, None
 
     def URL(self):          # noqa: N802 - mirrors the ScriptingBridge selector
         return self._url
 
     def close(self):
+        # A real closed tab leaves the window's tab list. The sweep confirms
+        # what actually went away, so the fake has to disappear too.
         self.closed = True
+        if self.window is not None:
+            self.window.remove(self)
 
 
 class FakeWindow:
-    def __init__(self, tabs): self._tabs = tabs
-    def tabs(self): return self._tabs
+    def __init__(self, tabs):
+        self._tabs = list(tabs)
+        for t in self._tabs:
+            t.window = self
+
+    def tabs(self): return list(self._tabs)
+
+    def remove(self, tab):
+        if tab in self._tabs:
+            self._tabs.remove(tab)
 
 
 class FakeApp:
@@ -106,3 +118,28 @@ def test_about_blank_never_closed(patch_app):
     patch_app(FakeApp([FakeWindow(tabs)]))
     browsers.sweep_browser("chrome", ["reddit.com"])
     assert not any(t.closed for t in tabs)
+
+
+def test_a_tab_that_refuses_to_close_is_not_reported_as_closed(patch_app):
+    """Safari reported success for weeks while closing nothing. Never again."""
+    class Stubborn(FakeTab):
+        def close(self):            # accepts the call, stays open
+            self.closed = True
+    stubborn = Stubborn("https://reddit.com/")
+    patch_app(FakeApp([FakeWindow([stubborn])]))
+
+    closed = browsers.sweep_browser("chrome", ["reddit.com"])
+
+    assert closed == [], "a tab still open must not be reported as closed"
+
+
+def test_reports_only_the_tabs_that_actually_went_away(patch_app):
+    gone = FakeTab("https://reddit.com/a")
+    class Stubborn(FakeTab):
+        def close(self): self.closed = True
+    stays = Stubborn("https://reddit.com/b")
+    patch_app(FakeApp([FakeWindow([gone, stays])]))
+
+    closed = browsers.sweep_browser("chrome", ["reddit.com"])
+
+    assert [c.url for c in closed] == ["https://reddit.com/a"]

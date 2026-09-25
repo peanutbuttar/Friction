@@ -27,8 +27,15 @@ def run(when: datetime | None = None) -> int:
 
     for tier, tc in cfg["tiers"].items():
         sched = tc.get("schedule", {})
-        window = ("manual only" if sched.get("mode") != "daily"
-                  else f"{sched['arms']}–{sched['releases']}")
+        if sched.get("mode") != "daily":
+            window = "manual only"
+        else:
+            # Show the window that applies TODAY -- printing the weekday hours
+            # on a Saturday would be actively misleading.
+            arms, releases = S.window_times(now, sched)
+            window = f"{arms:%H:%M}–{releases:%H:%M}"
+            if S.is_weekend(now) and sched.get("weekend"):
+                window += " (wknd)"
         on = S.in_schedule_window(now, tc)
         label = "\033[31mARMED\033[0m" if on else "\033[2mopen\033[0m"
         print(f"\033[1m{tier}\033[0m  {window:14} {label}  "

@@ -40,7 +40,13 @@ the throttle clears once the app actually goes away so a genuine relaunch is not
 swallowed.
 
 **Websites** are blocked by enumerating open browser tabs via AppleScript and closing
-any that match a rule. This must be polled; default sweep is every 10 seconds, and
+any that match a rule. Safari needs a different closing mechanism from the others:
+its scripting dictionary gives the `tab` class properties but no close command, and
+ScriptingBridge cannot close one -- `tab.close()` raises and `closeSaving:savingIn:`
+silently does nothing. Safari tabs are therefore closed with an AppleScript call
+instead. A sweep confirms which tabs actually disappeared and reports only those;
+reporting a close without checking it is how Safari appeared to work for weeks while
+closing nothing. This must be polled; default sweep is every 10 seconds, and
 browsers that aren't running are skipped entirely.
 
 **A site entry may be a single domain or a list of domains** for one service
@@ -63,8 +69,13 @@ Firefox does not expose its tabs to AppleScript, so it is treated as a blocked
 | | Arms | Releases | Unlock challenge | Pass duration |
 |---|---|---|---|---|
 | **Tier 1** | manual | manual | Confirm | 30 min |
-| **Tier 2** | 06:00 daily | 19:00 | Confirm, then one arithmetic problem | 15 min |
-| **Tier 3** | 06:00 daily | 21:00 | Confirm, then transcribe a 200–500 word passage | 5 min |
+| **Tier 2** | 06:00 daily | 19:00 (17:00 Sat/Sun) | Confirm, then one arithmetic problem | 15 min |
+| **Tier 3** | 06:00 daily | 21:00 (19:00 Sat/Sun) | Confirm, then transcribe a 200–500 word passage | 5 min |
+
+A daily schedule may carry a `weekend` block overriding `arms` and/or `releases` on
+Saturday and Sunday. `next_boundary` walks forward day by day rather than assuming
+every day has the same window, so a manual lock applied on a Friday night lapses at
+Saturday's boundary, not at a weekday time that does not apply.
 
 **Every tier confirms first.** The extra friction of tiers 2 and 3 comes *after* the
 "are you sure?", never instead of it.

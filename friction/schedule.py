@@ -93,12 +93,30 @@ def items(config: dict[str, Any]) -> list[Item]:
     return out
 
 
+def is_weekend(when: datetime) -> bool:
+    """Saturday or Sunday. Monday is 0, so 5 and 6 are the weekend."""
+    return when.weekday() >= 5
+
+
+def window_times(when: datetime, sched: dict[str, Any]) -> tuple[time, time]:
+    """The arm and release times that apply on this particular day.
+
+    A tier may carry a `weekend` block overriding either time on Saturday and
+    Sunday. Anything it leaves out falls back to the weekday value.
+    """
+    weekend = sched.get("weekend")
+    if weekend and is_weekend(when):
+        return (_hhmm(weekend.get("arms", sched["arms"])),
+                _hhmm(weekend.get("releases", sched["releases"])))
+    return _hhmm(sched["arms"]), _hhmm(sched["releases"])
+
+
 def in_schedule_window(now: datetime, tier_cfg: dict[str, Any]) -> bool:
     """Is this tier inside its automatic arming window?"""
     sched = tier_cfg.get("schedule", {})
     if sched.get("mode") != "daily":
         return False                       # manual-only tiers are never auto-armed
-    arms, releases = _hhmm(sched["arms"]), _hhmm(sched["releases"])
+    arms, releases = window_times(now, sched)
     t = now.time()
     if arms <= releases:
         return arms <= t < releases
@@ -114,12 +132,17 @@ def next_boundary(after: datetime, tier_cfg: dict[str, Any]) -> datetime | None:
     sched = tier_cfg.get("schedule", {})
     if sched.get("mode") != "daily":
         return None
-    candidates = []
-    for value in (sched["arms"], sched["releases"]):
-        t = _hhmm(value)
-        today = after.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
-        candidates.append(today if today > after else today + timedelta(days=1))
-    return min(candidates)
+    # Weekday and weekend windows differ, so the next boundary depends on which
+    # day it falls on. Walk forward a few days and take the earliest that is
+    # still ahead of us.
+    best: datetime | None = None
+    for offset in range(3):
+        day = after + timedelta(days=offset)
+        for t in window_times(day, sched):
+            cand = day.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+            if cand > after and (best is None or cand < best):
+                best = cand
+    return best
 
 
 def manual_arm_active(now: datetime, key: str, tier_cfg: dict[str, Any],

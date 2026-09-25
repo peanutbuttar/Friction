@@ -27,7 +27,10 @@
       "schedule": {
         "mode": "daily",
         "arms": "06:00",
-        "releases": "19:00"
+        "releases": "19:00",
+        "weekend": {
+          "releases": "17:00"
+        }
       },
       "challenge": "arithmetic",
       "unlock_minutes": 15,
@@ -50,7 +53,10 @@
       "schedule": {
         "mode": "daily",
         "arms": "06:00",
-        "releases": "21:00"
+        "releases": "21:00",
+        "weekend": {
+          "releases": "19:00"
+        }
       },
       "challenge": "transcription",
       "unlock_minutes": 5,
@@ -118,5 +124,6 @@
   "_switches": "whole_tier_switch gives a tier a lock-all/unlock-all row. Only tier 1 has one; tiers 2 and 3 are per-item on purpose, so one challenge cannot open the whole tier.",
   "_grouping": "A site entry can be a single domain, or a list of domains for one service reached by several names (x.com and twitter.com). A group locks and unlocks as one thing. The FIRST domain is the key, so adding an alias to an existing entry does not void unlocks already recorded against it.",
   "force_quit": [],
-  "_force_quit": "Bundle ids that may be FORCE-quit if they ignore every polite quit request. Opt-in only. Electron-based launchers (the Minecraft launcher) swallow the quit event and cannot be blocked otherwise. Never list an app that holds unsaved work -- forcing it destroys that work."
+  "_force_quit": "Bundle ids that may be FORCE-quit if they ignore every polite quit request. Opt-in only. Electron-based launchers (the Minecraft launcher) swallow the quit event and cannot be blocked otherwise. Never list an app that holds unsaved work -- forcing it destroys that work.",
+  "_weekend": "A daily schedule may carry a 'weekend' block overriding 'arms' and/or 'releases' on Saturday and Sunday. Anything it leaves out falls back to the weekday value."
 }
