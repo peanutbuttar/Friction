@@ -31,6 +31,17 @@ LOCKED, OPEN, OFF = "🔒", "🔓", "⏸"
 TICK_SECONDS = 1        # countdowns show seconds, so this has to be 1
 
 
+def _screen_signature() -> tuple:
+    """A comparable description of the current screen layout."""
+    from AppKit import NSScreen
+    out = []
+    for s in NSScreen.screens():
+        f = s.frame()
+        out.append((int(f.origin.x), int(f.origin.y),
+                    int(f.size.width), int(f.size.height)))
+    return tuple(sorted(out))
+
+
 def _countdown(until: datetime, now: datetime) -> str:
     """Format the time remaining as M:SS."""
     total = max(0, int((until - now).total_seconds()))
@@ -76,6 +87,7 @@ class FrictionApp(rumps.App):
             def screensChanged_(self, note):          # noqa: N802 - ObjC selector
                 app._rebuild_status_item()
 
+        self._screen_sig = _screen_signature()
         self._screen_watcher = _ScreenWatcher.alloc().init()
         NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
             self._screen_watcher, "screensChanged:",
@@ -126,11 +138,16 @@ class FrictionApp(rumps.App):
         nsapp = getattr(self, "_nsapp", None)
         if nsapp is None:
             return                                    # not launched yet
-        # Screen changes arrive in bursts; once per second is plenty.
-        now = datetime.now()
-        if (now - getattr(self, "_last_status_rebuild", datetime.min)).total_seconds() < 1:
+
+        # macOS posts this notification for far more than plugging a monitor in
+        # -- resolution probes, wake, even a menu bar relayout. Rebuilding on
+        # every one tore the icon down and recreated it once a second forever
+        # (3043 times in one session), so it never settled anywhere visible.
+        # Only rebuild when the screen layout genuinely differs.
+        signature = _screen_signature()
+        if signature == getattr(self, "_screen_sig", None):
             return
-        self._last_status_rebuild = now
+        self._screen_sig = signature
         try:
             old = getattr(nsapp, "nsstatusitem", None)
             if old is not None:
