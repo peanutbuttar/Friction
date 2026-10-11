@@ -31,6 +31,22 @@ LOCKED, OPEN, OFF = "🔒", "🔓", "⏸"
 TICK_SECONDS = 1        # countdowns show seconds, so this has to be 1
 
 
+def _tier_window_label(tier_cfg: dict, tier: str, now: datetime) -> str:
+    """Tier name plus the hours that apply TODAY.
+
+    Weekends run shorter, so a fixed label would be wrong two days in seven.
+    This is recomputed on every refresh, which means it corrects itself at
+    midnight without anyone restarting anything.
+    """
+    label = tier_cfg.get("label", tier)
+    sched = tier_cfg.get("schedule", {})
+    if sched.get("mode") != "daily":
+        return f"{label}  ·  manual"
+    arms, releases = S.window_times(now, sched)
+    weekend = "  · weekend" if S.is_weekend(now) and sched.get("weekend") else ""
+    return f"{label}  ·  {arms:%H:%M}–{releases:%H:%M}{weekend}"
+
+
 def _screen_signature() -> tuple:
     """A comparable description of the current screen layout."""
     from AppKit import NSScreen
@@ -62,6 +78,7 @@ class FrictionApp(rumps.App):
         self._entries: dict[str, rumps.MenuItem] = {}   # item key -> menu item
         self._tier_all: dict[str, rumps.MenuItem] = {}  # tier    -> "all" item
         self._add_items: dict[str, rumps.MenuItem] = {}  # tier   -> "add a site" item
+        self._tier_headers: dict[str, rumps.MenuItem] = {}   # tier -> header row
         self._master: rumps.MenuItem | None = None
         self._build()
         self._timer = rumps.Timer(self._tick, TICK_SECONDS)
@@ -175,6 +192,7 @@ class FrictionApp(rumps.App):
         self._entries.clear()
         self._tier_all.clear()
         self._add_items.clear()
+        self._tier_headers.clear()
 
         # rumps keys menu items by their title, so these need DISTINCT initial
         # titles or the second silently replaces the first. Later title updates
@@ -196,7 +214,10 @@ class FrictionApp(rumps.App):
         self.menu.add(rumps.separator)
 
         for tier, tier_cfg in self.cfg["tiers"].items():
-            header = rumps.MenuItem(tier_cfg.get("label", tier))
+            # Keyed by tier, not by label: the title carries today's hours and
+            # has to change at midnight on a Friday without re-keying the menu.
+            header = rumps.MenuItem(f"tier-{tier}")
+            self._tier_headers[tier] = header
             # Tiers 2 and 3 are per-item on purpose: one challenge must not be
             # able to open a whole tier.
             if tier_cfg.get("whole_tier_switch"):
@@ -319,6 +340,9 @@ class FrictionApp(rumps.App):
                                   else f"{LOCKED}  All {n} locked")
             else:
                 all_item.title = f"{OPEN}  Lock all {n}"
+
+        for tier, header in self._tier_headers.items():
+            header.title = _tier_window_label(self.cfg["tiers"][tier], tier, now)
 
         for tier, add_item in self._add_items.items():
             add_item.title = "＋  Add a site…"
