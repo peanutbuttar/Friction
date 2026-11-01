@@ -44,11 +44,13 @@ def attempt_unlock(item: Item, cfg: dict, whole_tier: bool = False) -> bool:
     """
     from friction.challenges import gui
 
-    now = datetime.now()
+    # When the click happened decides WHICH terms apply (why is it locked?).
+    # It must not decide when the pass starts -- see `finished` below.
+    started = datetime.now()
     state = st.load()
     tier_cfg = cfg["tiers"][item.tier]
     kind = tier_cfg.get("challenge", "confirm")
-    plan = S.unlock_plan(now, item, cfg, state)
+    plan = S.unlock_plan(started, item, cfg, state)
     name = label_for(item, cfg, whole_tier=whole_tier)
 
     choice = gui.confirm_unlock(name, plan, NEXT_STEP.get(kind))
@@ -71,14 +73,19 @@ def attempt_unlock(item: Item, cfg: dict, whole_tier: bool = False) -> bool:
     if not passed:
         return False
 
+    # The pass starts when the challenge is FINISHED, not when the item was
+    # clicked. Otherwise the minutes spent typing are deducted from the pass:
+    # a 266-word passage takes ~6 minutes, and tier 3 only grants 5, so a
+    # completed transcription could buy nothing at all.
+    finished = datetime.now()
     key = item.tier_key if whole_tier else item.key
     if choice is gui.UNTIMED:
-        st.update(lambda s: S.release_manual_lock(s, item, cfg, now,
+        st.update(lambda s: S.release_manual_lock(s, item, cfg, finished,
                                                   whole_tier=whole_tier))
         log.info("unlocked %s with no time limit", key)
     else:
         minutes = plan.minutes or int(tier_cfg.get("unlock_minutes", 15))
-        st.update(lambda s: S.grant_pass(s, key, now, minutes))
+        st.update(lambda s: S.grant_pass(s, key, finished, minutes))
         log.info("unlocked %s for %d minutes", key, minutes)
     return True
 
@@ -91,7 +98,6 @@ def attempt_global_unlock(cfg: dict) -> bool:
     """
     from friction.challenges import gui
 
-    now = datetime.now()
     plan = S.global_unlock_plan(cfg)
     kind = cfg.get("global_switch", {}).get("challenge", "transcription")
     n = len(S.items(cfg))
@@ -112,11 +118,12 @@ def attempt_global_unlock(cfg: dict) -> bool:
     if not passed:
         return False
 
+    finished = datetime.now()          # pass starts after the passage, not before
     if choice is gui.UNTIMED:
-        st.update(lambda s: S.set_global_lock(s, now, False))
+        st.update(lambda s: S.set_global_lock(s, finished, False))
         log.info("released the global lock with no time limit")
     else:
-        st.update(lambda s: S.grant_pass(s, S.GLOBAL_KEY, now, plan.minutes))
+        st.update(lambda s: S.grant_pass(s, S.GLOBAL_KEY, finished, plan.minutes))
         log.info("released the global lock for %d minutes", plan.minutes)
     return True
 
